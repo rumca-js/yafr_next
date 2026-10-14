@@ -28,24 +28,23 @@
         </button>
       </div>
 
-      <!-- Filters & Quick Actions -->
-      <div class="d-flex flex-wrap justify-content-center align-items-center gap-2 mt-3">
-        <div class="btn-group" role="group" aria-label="Search filter">
+      <!-- Order / Filter Combobox -->
+      <div class="d-flex justify-content-center align-items-center gap-2 mt-3">
+        <label for="filter-select" class="text-secondary small fw-medium">
+          <i class="bi bi-sort-down me-1"></i>Order:
+        </label>
+        <select 
+          name="filter" 
+          id="filter-select" 
+          class="form-select form-select-sm w-auto shadow-sm rounded-pill border-secondary-subtle px-3 py-1 text-secondary-emphasis"
+          aria-label="Order and search filter"
+        >
           {% for f in filters %}
-            <input 
-              type="radio" 
-              class="btn-check" 
-              name="filter" 
-              id="filter-{{ f.id }}" 
-              value="{{ f.id }}"
-              autocomplete="off"
-              {% if f.id == active_filter %}checked{% endif %}
-            >
-            <label class="btn btn-outline-secondary btn-sm" for="filter-{{ f.id }}">
+            <option value="{{ f.id }}" {% if f.id == active_filter %}selected{% endif %}>
               {{ f.name }}
-            </label>
+            </option>
           {% endfor %}
-        </div>
+        </select>
       </div>
     </form>
 
