@@ -56,6 +56,16 @@ class TestEntryRoutes(unittest.TestCase):
         self.assertIn("main-search-input", html)
         self.assertIn("Search entries", html)
 
+    def test_search_view_no_input_returns_all_data(self):
+        """GET /?q= (search with no input text) returns all entries."""
+        response = self.client.get("/?q=")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        # Should return both seeded entries
+        self.assertIn("Advanced Python Programming", html)
+        self.assertIn("Flask Web Development", html)
+        self.assertIn("Showing all", html)
+
     def test_search_view_with_query(self):
         """GET / with query executes search and returns matching entries."""
         response = self.client.get("/?q=Python")

@@ -24,8 +24,13 @@ def search_view():
     query = request.args.get("q", "").strip()
     active_filter = request.args.get("filter", "date_published")
     page = max(1, request.args.get("page", 1, type=int))
-
-    has_query = bool(query)
+    # When user enters a query OR performs search with no input ("q" in request.args, page, or filter)
+    has_query = (
+        ("q" in request.args)
+        or ("page" in request.args)
+        or ("filter" in request.args)
+        or bool(query)
+    )
 
     session = get_session()
     config_repo = ConfigRepository(session)
@@ -41,10 +46,11 @@ def search_view():
     total_results = 0
 
     if has_query:
-        # Save query to user search history for autocomplete
-        history_repo.add_search(
-            query, max_limit=int(config.max_number_of_user_search or 300)
-        )
+        # Save query to user search history for autocomplete only if non-empty
+        if query:
+            history_repo.add_search(
+                query, max_limit=int(config.max_number_of_user_search or 300)
+            )
 
         # Parse user query using AST grammar
         parsed_query = SearchParser.parse(query)

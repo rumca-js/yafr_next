@@ -62,7 +62,7 @@
             {% if query %}
               <span>Found <strong>{{ "{:,}".format(total_results) }}</strong> sources for <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ query }}</span></span>
             {% else %}
-              <span>Showing <strong>{{ "{:,}".format(total_results) }}</strong> sources</span>
+              <span>Showing all <strong>{{ "{:,}".format(total_results) }}</strong> sources</span>
             {% endif %}
 
             {% if total_pages > 1 %}

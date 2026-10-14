@@ -303,6 +303,7 @@ The screen displays, where available:
  - source.SourceOperationalDataRepository has page_hash (entire source hash), and body_hash (body, or entries hash). If it is not different than previous one, you can skip refresh, and mark as read
  - SourceOperationalDataRepository stores the amount of source entries, consecutive_errors contain the amount of consecutive errors. Is cleared when valid response is received.
  - source is marked as read when it's response is valid, if it is not consecutive errors counter is incremented
+ - all links from sources (or from jobs) should pass through some EntryLinkBuilder (or similar). it shall check ConfigurationEntry if link of this type is accepted or not. ConfigurationEntry has fields to accept_domain_links, etc. It should also check entry rules, if are blocking entries
 
 # Jobs
  - There should be a background task. It should handle processing of jobs.

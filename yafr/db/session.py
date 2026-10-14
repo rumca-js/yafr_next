@@ -112,10 +112,18 @@ def init_db(db_path: Optional[str] = None, sync_schema: bool = True) -> Engine:
         db_file.parent.mkdir(parents=True, exist_ok=True)
         db_url = f"sqlite:///{db_file}"
 
+    engine_kwargs = {
+        "connect_args": {"check_same_thread": False},
+        "pool_pre_ping": True,
+    }
+    if db_path == ":memory:":
+        from sqlalchemy.pool import StaticPool
+
+        engine_kwargs["poolclass"] = StaticPool
+
     _engine = create_engine(
         db_url,
-        connect_args={"check_same_thread": False},
-        pool_pre_ping=True,
+        **engine_kwargs,
     )
 
     session_factory = sessionmaker(

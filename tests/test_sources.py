@@ -4,7 +4,9 @@ Integration tests for Sources views and REST API endpoints.
 
 from datetime import datetime, timedelta, timezone
 import json
+import time
 import unittest
+from unittest.mock import patch
 from sqlalchemy import select
 from linkarchivetools.model.definitions import (
     Credentials,
@@ -87,6 +89,15 @@ class TestSourceRoutes(unittest.TestCase):
         self.assertIn("Search sources", html)
         self.assertIn("Add Source", html)
         self.assertIn("Browse All Sources", html)
+
+    def test_sources_list_search_no_input_returns_all_data(self):
+        """GET /sources?q= (source search with no input) returns all sources."""
+        response = self.client.get("/sources?q=")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Hacker News", html)
+        self.assertIn("Linux Weekly News", html)
+        self.assertIn("Showing all", html)
 
     def test_sources_list_show_all(self):
         """GET /sources?all=1 renders list of all sources."""
@@ -273,6 +284,9 @@ class TestSourceApi(unittest.TestCase):
 
     def tearDown(self):
         close_session()
+        from yafr.services import SourceService
+
+        SourceService._refresh_state["is_running"] = False
 
     def test_enable_disable_source(self):
         """POST /api/sources/<id>/disable and /enable toggles state."""
@@ -283,8 +297,8 @@ class TestSourceApi(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertFalse(data["enabled"])
 
-        self.session.refresh(self.s1)
-        self.assertFalse(self.s1.enabled)
+        s1_after_disable = SourceRepository(get_session()).get_by_id(self.s1.id)
+        self.assertFalse(s1_after_disable.enabled)
 
         # Enable s1
         res_en = self.client.post(f"/api/sources/{self.s1.id}/enable")
@@ -293,8 +307,8 @@ class TestSourceApi(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertTrue(data["enabled"])
 
-        self.session.refresh(self.s1)
-        self.assertTrue(self.s1.enabled)
+        s1_after_enable = SourceRepository(get_session()).get_by_id(self.s1.id)
+        self.assertTrue(s1_after_enable.enabled)
 
     def test_delete_source(self):
         """DELETE /api/sources/<id> removes source and operational data."""
@@ -335,8 +349,10 @@ class TestSourceApi(unittest.TestCase):
         self.assertIn("completed_sources", data)
         self.assertIn("total_sources", data)
 
-    def test_fetch_all_endpoint(self):
+    @patch("yafr.services.source_service.SourceService.fetch_source")
+    def test_fetch_all_endpoint(self, mock_fetch):
         """POST /api/sources/fetch-all triggers batch refresh."""
+        mock_fetch.return_value = {"success": True, "entries_added": 0}
         res = self.client.post(
             "/api/sources/fetch-all",
             json={"include_errors": True},
@@ -345,3 +361,5 @@ class TestSourceApi(unittest.TestCase):
         data = res.get_json()
         self.assertTrue(data["success"])
         self.assertIn("queued_sources_count", data)
+        # Give worker a moment to process the mocked fetches
+        time.sleep(0.2)

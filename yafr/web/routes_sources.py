@@ -34,10 +34,15 @@ def sources_list():
     """
     query = request.args.get("q", "").strip()
     active_filter = request.args.get("filter", "url")
-    page = max(1, request.args.get("page", 1, type=int))
     show_all = request.args.get("all") == "1"
-
-    has_query = bool(query) or show_all
+    page = max(1, request.args.get("page", 1, type=int))
+    has_query = (
+        ("q" in request.args)
+        or show_all
+        or ("page" in request.args)
+        or ("filter" in request.args)
+        or bool(query)
+    )
 
     session = get_session()
     config_repo = ConfigRepository(session)
