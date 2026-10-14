@@ -13,3 +13,4 @@
  - provide ability to add many sources
  - provide ability to add many entries
  - provide dbupdate scripts
+ - page properties tool
