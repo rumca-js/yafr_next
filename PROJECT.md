@@ -309,6 +309,7 @@ The screen displays, where available:
  - There should be a background task. It should handle processing of jobs.
  - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
  - when there are no jobs, then check if any of source requires refresh
+ - Jobs processing should be done as a separate python script. It shall process jobs
 
 # Databases management
 It should be possible to download a new database .db file from the internet, or elsewhere.

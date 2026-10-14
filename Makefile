@@ -1,4 +1,4 @@
-.PHONY: run install test format clean help
+.PHONY: run worker install test format clean help
 
 .DEFAULT_GOAL := run
 
@@ -8,6 +8,10 @@ PYTHON := poetry run python
 ## run: Start the YAFR Flask development server
 run:
 	@$(PYTHON) run.py
+
+## worker: Start the background job processor (one job at a time)
+worker:
+	@$(PYTHON) process_jobs.py
 
 ## install: Install all project dependencies via Poetry
 install:
@@ -19,7 +23,7 @@ test:
 
 ## format: Format Python codebase with black
 format:
-	@poetry run black yafr run.py
+	@poetry run black yafr run.py process_jobs.py
 
 ## clean: Clean compiled bytecode and caches
 clean:
