@@ -146,6 +146,7 @@ There are several list styles:
  - bookmark icon if bookmarked
  - skull indicator if dead
  - language if it is not empty, or not ""
+ - should indicate via badge if entry.age is > 0 (age limited)
 
  If thumbnail is not available, then it should be skipped.
  - Visited entries apply configurable visit alpha.
@@ -310,6 +311,7 @@ The screen displays, where available:
  - SourceOperationalDataRepository stores the amount of source entries, consecutive_errors contain the amount of consecutive errors. Is cleared when valid response is received.
  - source is marked as read when it's response is valid, if it is not consecutive errors counter is incremented
  - all links from sources (or from jobs) should pass through some EntryLinkBuilder (or similar). it shall check ConfigurationEntry if link of this type is accepted or not. ConfigurationEntry has fields to accept_domain_links, etc. It should also check entry rules, if are blocking entries
+ - each entry inherits some properties of source (if source property is defined). language, age. if source.auto_tag is defined it should also add said tags
 
 # Jobs
  - There should be a background task. It should handle processing of jobs.

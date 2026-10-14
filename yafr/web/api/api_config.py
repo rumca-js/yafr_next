@@ -8,7 +8,7 @@ display styles, display types, alphas, presets, and general configuration settin
 import logging
 from flask import Blueprint, jsonify, request
 from yafr.db import get_session
-from yafr.services import ConfigService
+from yafr.services import ConfigService, WebToolsWrapper
 from yafr.web.shared import api_response
 
 logger = logging.getLogger(__name__)
@@ -160,4 +160,33 @@ def reset_config():
         )
     except Exception as err:
         logger.error("Failed to reset configuration: %s", err)
+        return api_response(success=False, error=str(err), status_code=500)
+
+
+@api_config_bp.route("/webtools-status", methods=["GET"])
+def get_webtools_status():
+    """
+    Checks the reachability of the configured remote webtools server.
+    """
+    try:
+        session = get_session()
+        result = WebToolsWrapper.check_remote_status(session=session)
+        return jsonify({"success": True, **result})
+    except Exception as err:
+        logger.error("Failed to check WebTools status: %s", err)
+        return api_response(success=False, error=str(err), status_code=500)
+
+
+@api_config_bp.route("/test-webtools", methods=["POST"])
+def test_webtools():
+    """
+    Tests reachability of an explicitly provided remote webtools server URL.
+    """
+    try:
+        payload = request.get_json(silent=True) or request.form.to_dict() or {}
+        test_url = payload.get("url")
+        result = WebToolsWrapper.check_remote_status(remote_server_location=test_url)
+        return jsonify({"success": True, **result})
+    except Exception as err:
+        logger.error("Failed to test WebTools server: %s", err)
         return api_response(success=False, error=str(err), status_code=500)

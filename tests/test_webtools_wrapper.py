@@ -375,5 +375,96 @@ class TestSourceServiceWithWrapper(unittest.TestCase):
             self.assertEqual(op_data.consecutive_errors, 1)
 
 
+class TestWebToolsStatusApi(unittest.TestCase):
+    """
+    Test suite for WebTools reachability and API status endpoints.
+    """
+
+    def setUp(self):
+        self.app = create_app(
+            {
+                "TESTING": True,
+                "DATABASE_PATH": ":memory:",
+                "SECRET_KEY": "test-key-webtools-api",
+            }
+        )
+        self.client = self.app.test_client()
+        self.session = get_session()
+        self.config_repo = ConfigRepository(self.session)
+        self.config = self.config_repo.get_config()
+        self.config.remote_webtools_server_location = None
+        self.session.commit()
+
+    def tearDown(self):
+        close_session()
+
+    def test_check_remote_status_not_configured(self):
+        """
+        When not configured, check_remote_status returns configured=False.
+        """
+        status = WebToolsWrapper.check_remote_status(session=self.session)
+        self.assertFalse(status["configured"])
+        self.assertFalse(status["online"])
+        self.assertIsNone(status["url"])
+
+    def test_check_remote_status_online(self):
+        """
+        When remote server responds with 200, check_remote_status returns online=True.
+        """
+        mock_resp = MagicMock(status_code=200)
+        with patch("requests.get", return_value=mock_resp):
+            status = WebToolsWrapper.check_remote_status(
+                remote_server_location="http://192.168.0.200:3000",
+                session=self.session,
+            )
+            self.assertTrue(status["configured"])
+            self.assertTrue(status["online"])
+            self.assertEqual(status["status_code"], 200)
+
+    def test_check_remote_status_offline(self):
+        """
+        When remote server connection fails, check_remote_status returns online=False.
+        """
+        with patch("requests.get", side_effect=ConnectionError("Connection refused")):
+            status = WebToolsWrapper.check_remote_status(
+                remote_server_location="http://127.0.0.1:9999",
+                session=self.session,
+            )
+            self.assertTrue(status["configured"])
+            self.assertFalse(status["online"])
+            self.assertIn("Connection refused", status.get("error", ""))
+
+    def test_api_webtools_status_endpoint(self):
+        """
+        GET /api/config/webtools-status returns current configured status.
+        """
+        self.config.remote_webtools_server_location = "http://192.168.0.200:3000"
+        self.session.commit()
+
+        mock_resp = MagicMock(status_code=200)
+        with patch("requests.get", return_value=mock_resp):
+            resp = self.client.get("/api/config/webtools-status")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertTrue(data.get("success"))
+            self.assertTrue(data.get("configured"))
+            self.assertTrue(data.get("online"))
+
+    def test_api_test_webtools_endpoint(self):
+        """
+        POST /api/config/test-webtools tests reachability of submitted URL.
+        """
+        mock_resp = MagicMock(status_code=200)
+        with patch("requests.get", return_value=mock_resp):
+            resp = self.client.post(
+                "/api/config/test-webtools",
+                json={"url": "http://192.168.0.200:3000"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertTrue(data.get("success"))
+            self.assertTrue(data.get("online"))
+
+
 if __name__ == "__main__":
     unittest.main()

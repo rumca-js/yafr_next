@@ -106,4 +106,72 @@ document.addEventListener("DOMContentLoaded", function () {
     toast.show();
   }
 
+  // --- Remote WebTools Server Connection Test ---
+  const testWebtoolsBtn = document.getElementById("btn-test-webtools");
+  const webtoolsInput = document.getElementById("remote_webtools_server_location");
+  const webtoolsStatus = document.getElementById("webtools-test-status");
+
+  function runWebtoolsTest() {
+    if (!webtoolsInput) return;
+    const url = webtoolsInput.value.trim();
+
+    if (!url) {
+      if (webtoolsStatus) {
+        webtoolsStatus.className = "small text-muted";
+        webtoolsStatus.innerHTML = '<i class="bi bi-slash-circle me-1"></i>Disabled';
+      }
+      return;
+    }
+
+    if (testWebtoolsBtn) {
+      testWebtoolsBtn.disabled = true;
+      testWebtoolsBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+    }
+    if (webtoolsStatus) {
+      webtoolsStatus.className = "small text-muted";
+      webtoolsStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Testing...';
+    }
+
+    $.ajax({
+      url: "/api/config/test-webtools",
+      method: "POST",
+      contentType: "application/json",
+      data: JSON.stringify({ url: url }),
+      success: function (data) {
+        if (testWebtoolsBtn) {
+          testWebtoolsBtn.disabled = false;
+          testWebtoolsBtn.innerHTML = '<i class="bi bi-activity me-1"></i>Test';
+        }
+        if (!webtoolsStatus) return;
+
+        if (data && data.online) {
+          webtoolsStatus.className = "small text-success";
+          webtoolsStatus.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Online (' + (data.status_code || 200) + ')';
+        } else {
+          webtoolsStatus.className = "small text-danger";
+          const errDetail = (data && (data.error || data.message)) || "Unreachable";
+          webtoolsStatus.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>' + errDetail;
+        }
+      },
+      error: function () {
+        if (testWebtoolsBtn) {
+          testWebtoolsBtn.disabled = false;
+          testWebtoolsBtn.innerHTML = '<i class="bi bi-activity me-1"></i>Test';
+        }
+        if (webtoolsStatus) {
+          webtoolsStatus.className = "small text-danger";
+          webtoolsStatus.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>Connection error';
+        }
+      }
+    });
+  }
+
+  if (testWebtoolsBtn) {
+    testWebtoolsBtn.addEventListener("click", runWebtoolsTest);
+  }
+
+  if (webtoolsInput && webtoolsInput.value.trim()) {
+    runWebtoolsTest();
+  }
+
 });

@@ -493,10 +493,16 @@
                   </div>
 
                   <div class="col-12 col-md-6">
-                    <label for="remote_webtools_server_location" class="form-label fw-semibold">Remote WebTools Server</label>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <label for="remote_webtools_server_location" class="form-label fw-semibold mb-0">Remote WebTools Server</label>
+                      <span id="webtools-test-status" class="small fw-semibold"></span>
+                    </div>
                     <div class="input-group shadow-sm">
                       <span class="input-group-text"><i class="bi bi-globe2"></i></span>
                       <input type="url" class="form-control" id="remote_webtools_server_location" name="remote_webtools_server_location" value="{{ config.remote_webtools_server_location or '' }}" placeholder="http://127.0.0.1:3000">
+                      <button class="btn btn-outline-secondary" type="button" id="btn-test-webtools" title="Test server reachability">
+                        <i class="bi bi-activity me-1"></i>Test
+                      </button>
                     </div>
                     <div class="form-text">URL of a local or remote <a href="https://github.com/rumca-js/webtoolkit" target="_blank" rel="noopener">webtoolkit</a> server used for network operations (e.g. <code>http://127.0.0.1:3000</code>). Leave empty to disable.</div>
                   </div>

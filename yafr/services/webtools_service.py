@@ -366,6 +366,74 @@ class WebToolsWrapper:
         )
         return wrapper.get_response()
 
+    @classmethod
+    def check_remote_status(
+        cls,
+        remote_server_location: Optional[str] = None,
+        session: Optional[Session] = None,
+        timeout_s: float = 2.5,
+    ) -> Dict[str, Any]:
+        """
+        Checks reachability of the remote webtools server.
+
+        :param remote_server_location: Explicit server URL (if None, resolved from DB configuration).
+        :param session: Optional SQLAlchemy session.
+        :param timeout_s: HTTP request timeout in seconds.
+        :return: Dict containing configured, online, url, status_code, and message/error.
+        """
+        import requests
+
+        location = remote_server_location
+        if location is None:
+            location = cls.resolve_remote_server_location(session=session)
+
+        if not location or not location.strip():
+            return {
+                "configured": False,
+                "online": False,
+                "url": None,
+                "status_code": None,
+                "message": "Remote WebTools server is not configured.",
+            }
+
+        target_url = location.strip().rstrip("/")
+        if not (target_url.startswith("http://") or target_url.startswith("https://")):
+            target_url = f"http://{target_url}"
+
+        try:
+            resp = requests.get(target_url, timeout=timeout_s, verify=False)
+            status_code = resp.status_code
+            is_online = 200 <= status_code < 400
+            return {
+                "configured": True,
+                "online": is_online,
+                "url": target_url,
+                "status_code": status_code,
+                "message": (
+                    "Remote WebTools server is online."
+                    if is_online
+                    else f"Server responded with status {status_code}."
+                ),
+            }
+        except requests.exceptions.Timeout:
+            return {
+                "configured": True,
+                "online": False,
+                "url": target_url,
+                "status_code": None,
+                "error": f"Connection timed out after {timeout_s}s",
+                "message": f"Connection timed out after {timeout_s}s.",
+            }
+        except Exception as exc:
+            return {
+                "configured": True,
+                "online": False,
+                "url": target_url,
+                "status_code": None,
+                "error": str(exc),
+                "message": f"Cannot connect to remote server: {exc}",
+            }
+
 
 # Aliases for convenience and architectural consistency
 WebToolkitWrapper = WebToolsWrapper
@@ -375,3 +443,4 @@ WebToolsService = WebToolsWrapper
 create_url = WebToolsWrapper.create_url
 fetch_text = WebToolsWrapper.fetch_text
 fetch_response = WebToolsWrapper.fetch_response
+check_remote_status = WebToolsWrapper.check_remote_status

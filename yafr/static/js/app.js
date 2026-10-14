@@ -55,4 +55,49 @@ document.addEventListener("DOMContentLoaded", function () {
   window.addEventListener("online", updateNetworkStatus);
   window.addEventListener("offline", updateNetworkStatus);
   updateNetworkStatus();
+
+  // 3. Remote WebTools Server Status Monitor
+  const webtoolsBadge = document.getElementById("webtools-badge");
+
+  function updateWebToolsStatus() {
+    if (!webtoolsBadge) return;
+
+    if (!navigator.onLine) {
+      if (!webtoolsBadge.classList.contains("d-none")) {
+        webtoolsBadge.className = "badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1 rounded-pill";
+        webtoolsBadge.innerHTML = '<i class="bi bi-hdd-network me-1"></i>WebTools (Offline)';
+        webtoolsBadge.title = "Client network is offline";
+      }
+      return;
+    }
+
+    fetch("/api/config/webtools-status")
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || !data.configured) {
+          webtoolsBadge.classList.add("d-none");
+          return;
+        }
+
+        webtoolsBadge.classList.remove("d-none");
+        if (data.online) {
+          webtoolsBadge.className = "badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill";
+          webtoolsBadge.innerHTML = '<i class="bi bi-hdd-network me-1"></i>WebTools';
+          webtoolsBadge.title = "Remote WebTools server is online (" + data.url + ")";
+        } else {
+          webtoolsBadge.className = "badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded-pill";
+          webtoolsBadge.innerHTML = '<i class="bi bi-hdd-network me-1"></i>WebTools Offline';
+          webtoolsBadge.title = "Remote WebTools server is unreachable (" + data.url + "). Falling back to local BaseUrl.";
+        }
+      })
+      .catch(function () {
+        // Silently catch to avoid noisy console errors on transient network issues
+      });
+  }
+
+  updateWebToolsStatus();
+  window.addEventListener("online", updateWebToolsStatus);
 });
