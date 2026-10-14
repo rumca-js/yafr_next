@@ -4,6 +4,8 @@ Entry routes and search views controller.
 
 import math
 from flask import Blueprint, render_template, request
+from sqlalchemy import select
+from linkarchivetools.model.definitions import SocialData, SourcesTable
 from yafr.db import ConfigRepository, EntryRepository, HistoryRepository, get_session
 from yafr.search import FilterRegistry, SearchParser, SearchQueryBuilder
 
@@ -31,6 +33,7 @@ def search_view():
     entry_repo = EntryRepository(session)
 
     config = config_repo.get_config()
+    display_type = request.args.get("display", config.display_type or "gallery")
     per_page = int(config.links_per_page or 25)
     offset = (page - 1) * per_page
 
@@ -60,17 +63,40 @@ def search_view():
     )
     filters = FilterRegistry.get_available_filters(session)
 
-    # Attach tags and status mappings for template rendering
+    # Attach sources, social metrics, tags, and status mappings for template rendering
     entry_ids = [e.id for e in entries]
     read_later_ids = set()
     visited_ids = set()
     tags_map = {}
+    sources_map = {}
+    social_map = {}
 
     if entry_ids:
         read_later_ids = history_repo.get_read_later_entry_ids()
         visited_ids = history_repo.get_visited_entry_ids()
+
         for e in entries:
             tags_map[e.id] = entry_repo.get_tags(e.id)
+
+        source_ids = {e.source_id for e in entries if e.source_id}
+        if source_ids:
+            sources = (
+                session.execute(
+                    select(SourcesTable).where(SourcesTable.id.in_(source_ids))
+                )
+                .scalars()
+                .all()
+            )
+            sources_map = {s.id: s for s in sources}
+
+        social_records = (
+            session.execute(
+                select(SocialData).where(SocialData.entry_id.in_(entry_ids))
+            )
+            .scalars()
+            .all()
+        )
+        social_map = {s.entry_id: s for s in social_records}
 
     return render_template(
         "entries/list.html",
@@ -83,7 +109,10 @@ def search_view():
         page=page,
         total_pages=total_pages,
         per_page=per_page,
+        display_type=display_type,
         read_later_ids=read_later_ids,
         visited_ids=visited_ids,
         tags_map=tags_map,
+        sources_map=sources_map,
+        social_map=social_map,
     )

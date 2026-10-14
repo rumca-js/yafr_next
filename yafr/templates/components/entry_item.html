@@ -1,0 +1,422 @@
+{% set is_visited = entry.id in visited_ids %}
+{% set is_read_later = entry.id in read_later_ids %}
+{% set is_dead = (entry.manual_status_code == 400 or entry.status_code >= 400) %}
+{% set is_bookmarked = (entry.bookmarked == true or entry.bookmarked == 1) %}
+{% set has_votes = (entry.page_rating_votes and entry.page_rating_votes != 0) %}
+{% set entry_tags = tags_map.get(entry.id, []) %}
+{% set source_obj = sources_map.get(entry.source_id) if sources_map and entry.source_id else None %}
+{% set social_obj = social_map.get(entry.id) if social_map else None %}
+
+{# Determine dynamic alpha and status classes #}
+{% set alpha_classes = [] %}
+{% if is_visited %}{% set _ = alpha_classes.append('entry-visited') %}{% endif %}
+{% if is_dead %}{% set _ = alpha_classes.append('entry-dead') %}{% endif %}
+{% if is_bookmarked %}{% set _ = alpha_classes.append('entry-bookmarked') %}{% endif %}
+{% if has_votes %}{% set _ = alpha_classes.append('entry-voted') %}{% endif %}
+{% set class_str = alpha_classes | join(' ') %}
+
+{# ======================================================================== #}
+{# 1. GALLERY LAYOUT (YouTube / TikTok style visual grid)                    #}
+{# ======================================================================== #}
+{% if display_type == 'gallery' %}
+<div class="gallery-card border shadow-sm {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}">
+  <div class="gallery-thumb-wrap">
+    {% if entry.thumbnail %}
+      <img src="{{ entry.thumbnail }}" alt="{{ entry.title or 'Thumbnail' }}" class="gallery-thumb" loading="lazy">
+    {% elif source_obj and source_obj.favicon %}
+      <div class="gallery-thumb-placeholder flex-column">
+        <img src="{{ source_obj.favicon }}" alt="" width="48" height="48" class="rounded-circle mb-2">
+        <span class="small text-secondary">{{ source_obj.title or 'Source' }}</span>
+      </div>
+    {% else %}
+      <div class="gallery-thumb-placeholder">
+        <i class="bi bi-play-circle fs-1"></i>
+      </div>
+    {% endif %}
+
+    <!-- Top Badges Overlay (Skull, Bookmark, Language) -->
+    <div class="gallery-badges-top">
+      <div>
+        {% if is_dead %}
+          <span class="badge bg-danger shadow-sm" title="Dead link">
+            <i class="bi bi-skull me-1"></i>Dead
+          </span>
+        {% endif %}
+      </div>
+      <div class="d-flex gap-1">
+        {% if entry.language %}
+          <span class="badge bg-dark bg-opacity-75 shadow-sm text-uppercase small">{{ entry.language }}</span>
+        {% endif %}
+        <button class="btn btn-sm btn-dark bg-opacity-75 text-warning p-1 border-0 rounded-circle btn-bookmark" data-id="{{ entry.id }}" title="Toggle bookmark">
+          <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }}"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom Badges Overlay (Social / Views) -->
+    {% if social_obj and social_obj.view_count %}
+      <div class="gallery-badges-overlay">
+        <span class="badge bg-dark bg-opacity-75 small">
+          <i class="bi bi-eye me-1"></i>{{ "{:,}".format(social_obj.view_count) }}
+        </span>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="gallery-content d-flex flex-column justify-content-between flex-grow-1">
+    <div>
+      <h6 class="gallery-title">
+        <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="text-body text-decoration-none entry-link" data-id="{{ entry.id }}">
+          {{ entry.title or entry.link }}
+        </a>
+      </h6>
+
+      <div class="gallery-meta mb-2">
+        {% if source_obj %}
+          <div class="d-flex align-items-center gap-1 mb-1">
+            {% if source_obj.favicon %}
+              <img src="{{ source_obj.favicon }}" alt="" width="14" height="14" class="rounded-circle">
+            {% endif %}
+            <span class="text-truncate">{{ source_obj.title }}</span>
+          </div>
+        {% elif entry.author %}
+          <div class="text-truncate mb-1"><i class="bi bi-person me-1"></i>{{ entry.author }}</div>
+        {% endif %}
+        <div>
+          {% if entry.date_published %}
+            <i class="bi bi-calendar3 me-1"></i>{{ entry.date_published.strftime('%b %d, %Y') }}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Clickable Tags -->
+      {% if entry_tags %}
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          {% for tag in entry_tags[:3] %}
+            <a href="{{ url_for('entries.search_view', q='tag:' ~ tag) }}" class="badge bg-secondary-subtle text-secondary-emphasis text-decoration-none">
+              #{{ tag }}
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Card Action Buttons -->
+    <div class="gallery-actions">
+      <div class="btn-group btn-group-sm">
+        <button class="btn btn-outline-secondary btn-vote-up" data-id="{{ entry.id }}" title="Vote Up">
+          <i class="bi bi-arrow-up-short"></i>
+        </button>
+        <span class="btn btn-outline-secondary disabled fw-semibold px-2 score-badge" data-id="{{ entry.id }}">
+          {{ entry.page_rating_votes or 0 }}
+        </span>
+        <button class="btn btn-outline-secondary btn-vote-down" data-id="{{ entry.id }}" title="Vote Down">
+          <i class="bi bi-arrow-down-short"></i>
+        </button>
+      </div>
+
+      <button class="btn btn-sm btn-outline-primary rounded-pill btn-read-later {{ 'active' if is_read_later else '' }}" data-id="{{ entry.id }}" title="Read Later">
+        <i class="bi bi-clock{{ '-fill' if is_read_later else '' }}"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ======================================================================== #}
+{# 2. STANDARD LAYOUT (Feed Reader style: Left Thumb, Right Content)         #}
+{# ======================================================================== #}
+{% elif display_type == 'standard' %}
+<div class="card standard-card border shadow-sm p-3 {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}">
+  <div class="d-flex flex-column flex-sm-row gap-3">
+    {% if entry.thumbnail %}
+      <div class="standard-thumb-col flex-shrink-0">
+        <img src="{{ entry.thumbnail }}" alt="{{ entry.title or 'Thumbnail' }}" class="standard-thumb" loading="lazy">
+        {% if is_dead %}
+          <span class="badge bg-danger position-absolute top-0 start-0 m-1 shadow-sm">
+            <i class="bi bi-skull"></i>
+          </span>
+        {% endif %}
+      </div>
+    {% elif source_obj and source_obj.favicon %}
+      <div class="standard-thumb-col flex-shrink-0 d-flex align-items-center justify-content-center bg-body-tertiary">
+        <img src="{{ source_obj.favicon }}" alt="" width="48" height="48" class="rounded-circle">
+      </div>
+    {% endif %}
+
+    <div class="standard-body flex-grow-1">
+      <div>
+        <div class="d-flex align-items-start justify-content-between gap-2">
+          <h5 class="standard-title">
+            <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="text-body text-decoration-none entry-link" data-id="{{ entry.id }}">
+              {{ entry.title or entry.link }}
+            </a>
+          </h5>
+          <button class="btn btn-sm btn-outline-warning border-0 btn-bookmark p-1" data-id="{{ entry.id }}" title="Toggle bookmark">
+            <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }} fs-5"></i>
+          </button>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2 text-secondary small mb-2">
+          {% if source_obj %}
+            <span class="fw-medium text-body-secondary d-flex align-items-center gap-1">
+              {% if source_obj.favicon %}<img src="{{ source_obj.favicon }}" alt="" width="14" height="14" class="rounded-circle">{% endif %}
+              {{ source_obj.title }}
+            </span>
+            <span>&middot;</span>
+          {% endif %}
+          {% if entry.author %}
+            <span><i class="bi bi-person me-1"></i>{{ entry.author }}</span>
+            <span>&middot;</span>
+          {% endif %}
+          {% if entry.date_published %}
+            <span><i class="bi bi-calendar3 me-1"></i>{{ entry.date_published.strftime('%b %d, %Y') }}</span>
+          {% endif %}
+          {% if entry.language %}
+            <span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ entry.language }}</span>
+          {% endif %}
+          {% if is_dead %}
+            <span class="badge bg-danger"><i class="bi bi-skull me-1"></i>Dead</span>
+          {% endif %}
+        </div>
+
+        {% if entry.description %}
+          <p class="standard-desc">{{ entry.description }}</p>
+        {% endif %}
+
+        {% if entry_tags %}
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            {% for tag in entry_tags %}
+              <a href="{{ url_for('entries.search_view', q='tag:' ~ tag) }}" class="badge bg-secondary-subtle text-secondary-emphasis text-decoration-none">
+                #{{ tag }}
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+        <div class="d-flex align-items-center gap-3 text-secondary small">
+          {% if social_obj %}
+            {% if social_obj.view_count %}
+              <span><i class="bi bi-eye me-1"></i>{{ "{:,}".format(social_obj.view_count) }} views</span>
+            {% endif %}
+            {% if social_obj.stars %}
+              <span><i class="bi bi-star-fill text-warning me-1"></i>{{ social_obj.stars }}</span>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary btn-vote-up" data-id="{{ entry.id }}" title="Vote Up">
+              <i class="bi bi-arrow-up-short"></i>
+            </button>
+            <span class="btn btn-outline-secondary disabled fw-semibold px-2 score-badge" data-id="{{ entry.id }}">
+              {{ entry.page_rating_votes or 0 }}
+            </span>
+            <button class="btn btn-outline-secondary btn-vote-down" data-id="{{ entry.id }}" title="Vote Down">
+              <i class="bi bi-arrow-down-short"></i>
+            </button>
+          </div>
+
+          <button class="btn btn-sm btn-outline-primary rounded-pill btn-read-later {{ 'active' if is_read_later else '' }}" data-id="{{ entry.id }}" title="Read Later">
+            <i class="bi bi-clock{{ '-fill' if is_read_later else '' }} me-1"></i>Later
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ======================================================================== #}
+{# 3. SEARCH ENGINE LAYOUT (Google / DuckDuckGo style)                       #}
+{# ======================================================================== #}
+{% elif display_type == 'search-engine' %}
+<div class="search-engine-item {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}">
+  <div class="search-engine-breadcrumb">
+    {% if source_obj and source_obj.favicon %}
+      <img src="{{ source_obj.favicon }}" alt="" width="16" height="16" class="rounded-circle">
+    {% else %}
+      <i class="bi bi-globe"></i>
+    {% endif %}
+    <span>{{ source_obj.title if source_obj else (entry.author or 'Web') }}</span>
+    <span>&rsaquo;</span>
+    <span class="text-truncate">{{ entry.link }}</span>
+    {% if is_dead %}
+      <span class="badge bg-danger ms-1"><i class="bi bi-skull me-1"></i>Dead Link</span>
+    {% endif %}
+  </div>
+
+  <h5 class="search-engine-title">
+    <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="text-primary entry-link" data-id="{{ entry.id }}">
+      {{ entry.title or entry.link }}
+    </a>
+  </h5>
+
+  {% if entry.description %}
+    <p class="search-engine-snippet">{{ entry.description }}</p>
+  {% endif %}
+
+  <div class="search-engine-footer text-secondary">
+    {% if entry.date_published %}
+      <span>{{ entry.date_published.strftime('%b %d, %Y') }}</span>
+      <span>&middot;</span>
+    {% endif %}
+    {% if entry.language %}
+      <span class="badge bg-secondary-subtle text-secondary">{{ entry.language }}</span>
+      <span>&middot;</span>
+    {% endif %}
+
+    {% for tag in entry_tags[:5] %}
+      <a href="{{ url_for('entries.search_view', q='tag:' ~ tag) }}" class="badge bg-body-secondary text-secondary text-decoration-none">
+        #{{ tag }}
+      </a>
+    {% endfor %}
+
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-warning border-0 btn-bookmark p-0" data-id="{{ entry.id }}" title="Toggle bookmark">
+        <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }}"></i>
+      </button>
+      <button class="btn btn-sm btn-link text-decoration-none p-0 btn-read-later" data-id="{{ entry.id }}">
+        <i class="bi bi-clock{{ '-fill' if is_read_later else '' }} me-1"></i>{{ 'Saved' if is_read_later else 'Save' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ======================================================================== #}
+{# 4. CONTENT CENTRIC LAYOUT (Reddit / Forum style)                          #}
+{# ======================================================================== #}
+{% elif display_type == 'content-centric' %}
+<div class="content-centric-card shadow-sm {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}">
+  <!-- Left Vote Column -->
+  <div class="content-vote-col">
+    <button class="content-vote-btn btn-vote-up" data-id="{{ entry.id }}" title="Upvote">
+      <i class="bi bi-arrow-up"></i>
+    </button>
+    <span class="content-vote-score score-badge" data-id="{{ entry.id }}">
+      {{ entry.page_rating_votes or 0 }}
+    </span>
+    <button class="content-vote-btn btn-vote-down" data-id="{{ entry.id }}" title="Downvote">
+      <i class="bi bi-arrow-down"></i>
+    </button>
+  </div>
+
+  <!-- Main Content Body -->
+  <div class="content-main">
+    <div class="content-header">
+      {% if source_obj %}
+        {% if source_obj.favicon %}
+          <img src="{{ source_obj.favicon }}" alt="" width="16" height="16" class="rounded-circle">
+        {% endif %}
+        <span class="fw-semibold text-body-emphasis">{{ source_obj.title }}</span>
+        <span>&bull;</span>
+      {% endif %}
+      <span>Posted by {{ entry.author or 'Anonymous' }}</span>
+      {% if entry.date_published %}
+        <span>&bull;</span>
+        <span>{{ entry.date_published.strftime('%b %d, %Y') }}</span>
+      {% endif %}
+      {% if is_dead %}
+        <span class="badge bg-danger ms-1"><i class="bi bi-skull me-1"></i>Dead</span>
+      {% endif %}
+      {% if entry.language %}
+        <span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ entry.language }}</span>
+      {% endif %}
+    </div>
+
+    <h5 class="content-title">
+      <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="text-body text-decoration-none entry-link" data-id="{{ entry.id }}">
+        {{ entry.title or entry.link }}
+      </a>
+    </h5>
+
+    {% if entry.description %}
+      <div class="content-body">{{ entry.description }}</div>
+    {% endif %}
+
+    {% if entry.thumbnail %}
+      <div class="content-thumb-preview">
+        <img src="{{ entry.thumbnail }}" alt="{{ entry.title or 'Media preview' }}" loading="lazy">
+      </div>
+    {% endif %}
+
+    {% if entry_tags %}
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        {% for tag in entry_tags %}
+          <a href="{{ url_for('entries.search_view', q='tag:' ~ tag) }}" class="badge bg-secondary-subtle text-secondary-emphasis text-decoration-none">
+            #{{ tag }}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="content-footer-bar text-secondary">
+      {% if social_obj and social_obj.view_count %}
+        <span><i class="bi bi-eye me-1"></i>{{ "{:,}".format(social_obj.view_count) }} views</span>
+      {% endif %}
+
+      <button class="btn btn-sm btn-outline-secondary border-0 btn-read-later {{ 'active' if is_read_later else '' }}" data-id="{{ entry.id }}">
+        <i class="bi bi-clock{{ '-fill' if is_read_later else '' }} me-1"></i>{{ 'Saved' if is_read_later else 'Read Later' }}
+      </button>
+
+      <button class="btn btn-sm btn-outline-warning border-0 btn-bookmark" data-id="{{ entry.id }}">
+        <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }} me-1"></i>{{ 'Bookmarked' if is_bookmarked else 'Bookmark' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ======================================================================== #}
+{# 5. LINKS ONLY LAYOUT (High density tabular view)                          #}
+{# ======================================================================== #}
+{% else %}
+<tr class="links-only-row {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}">
+  <td>
+    {% if is_dead %}
+      <i class="bi bi-skull text-danger" title="Dead link"></i>
+    {% elif is_bookmarked %}
+      <i class="bi bi-bookmark-fill text-warning" title="Bookmarked"></i>
+    {% elif is_read_later %}
+      <i class="bi bi-clock text-primary" title="Read later"></i>
+    {% else %}
+      <i class="bi bi-link-45deg text-secondary"></i>
+    {% endif %}
+  </td>
+  <td>
+    <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="links-only-title text-body entry-link" data-id="{{ entry.id }}" title="{{ entry.title }}">
+      {{ entry.title or entry.link }}
+    </a>
+  </td>
+  <td class="text-secondary text-truncate" style="max-width: 160px;">
+    {% if source_obj %}
+      {% if source_obj.favicon %}<img src="{{ source_obj.favicon }}" alt="" width="14" height="14" class="rounded-circle me-1">{% endif %}
+      {{ source_obj.title }}
+    {% else %}
+      {{ entry.author or '-' }}
+    {% endif %}
+  </td>
+  <td class="text-secondary small text-nowrap">
+    {{ entry.date_published.strftime('%Y-%m-%d') if entry.date_published else '-' }}
+  </td>
+  <td class="text-center font-monospace small">
+    <span class="score-badge" data-id="{{ entry.id }}">{{ entry.page_rating_votes or 0 }}</span>
+  </td>
+  <td>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-sm btn-outline-secondary btn-vote-up" data-id="{{ entry.id }}" title="Vote Up">
+        <i class="bi bi-arrow-up-short"></i>
+      </button>
+      <button class="btn btn-sm btn-outline-secondary btn-vote-down" data-id="{{ entry.id }}" title="Vote Down">
+        <i class="bi bi-arrow-down-short"></i>
+      </button>
+      <button class="btn btn-sm btn-outline-warning btn-bookmark" data-id="{{ entry.id }}" title="Bookmark">
+        <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }}"></i>
+      </button>
+      <button class="btn btn-sm btn-outline-primary btn-read-later {{ 'active' if is_read_later else '' }}" data-id="{{ entry.id }}" title="Read Later">
+        <i class="bi bi-clock{{ '-fill' if is_read_later else '' }}"></i>
+      </button>
+    </div>
+  </td>
+</tr>
+{% endif %}

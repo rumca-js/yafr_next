@@ -24,29 +24,49 @@
   <!-- Search Results Container (Shown when a query has been entered) -->
   {% if has_query %}
     <div class="row justify-content-center">
-      <div class="col-12 col-xl-10">
+      <div class="col-12 col-xl-11">
         <!-- Results Header / Metadata Bar -->
-        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
           <div class="text-secondary small">
-            Found <strong>{{ total_results }}</strong> results for <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ query }}</span>
+            Found <strong>{{ "{:,}".format(total_results) }}</strong> results for <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ query }}</span>
+            {% if total_pages > 1 %}
+              <span class="ms-2 text-muted">&middot; Page {{ page }} of {{ total_pages }}</span>
+            {% endif %}
           </div>
+
           <div class="d-flex align-items-center gap-2">
-            <span class="text-secondary small">Display:</span>
+            <span class="text-secondary small d-none d-sm-inline">Layout:</span>
             <div class="btn-group btn-group-sm" role="group" aria-label="Display style">
-              <button type="button" class="btn btn-outline-secondary active" title="Standard layout">
-                <i class="bi bi-view-list"></i>
-              </button>
-              <button type="button" class="btn btn-outline-secondary" title="Gallery layout">
+              <a href="{{ url_for('entries.search_view', q=query, filter=active_filter, display='gallery', page=page) }}" 
+                 class="btn btn-outline-secondary {{ 'active' if display_type == 'gallery' else '' }}" 
+                 title="Gallery layout (YouTube / TikTok style)">
                 <i class="bi bi-grid-3x3-gap"></i>
-              </button>
-              <button type="button" class="btn btn-outline-secondary" title="Search engine layout">
-                <i class="bi bi-card-text"></i>
-              </button>
+              </a>
+              <a href="{{ url_for('entries.search_view', q=query, filter=active_filter, display='standard', page=page) }}" 
+                 class="btn btn-outline-secondary {{ 'active' if display_type == 'standard' else '' }}" 
+                 title="Standard layout (Feed reader style)">
+                <i class="bi bi-view-list"></i>
+              </a>
+              <a href="{{ url_for('entries.search_view', q=query, filter=active_filter, display='search-engine', page=page) }}" 
+                 class="btn btn-outline-secondary {{ 'active' if display_type == 'search-engine' else '' }}" 
+                 title="Search engine layout (Google style)">
+                <i class="bi bi-search"></i>
+              </a>
+              <a href="{{ url_for('entries.search_view', q=query, filter=active_filter, display='content-centric', page=page) }}" 
+                 class="btn btn-outline-secondary {{ 'active' if display_type == 'content-centric' else '' }}" 
+                 title="Content-centric layout (Reddit style)">
+                <i class="bi bi-chat-square-text"></i>
+              </a>
+              <a href="{{ url_for('entries.search_view', q=query, filter=active_filter, display='links-only', page=page) }}" 
+                 class="btn btn-outline-secondary {{ 'active' if display_type == 'links-only' else '' }}" 
+                 title="Links-only layout (Compact list)">
+                <i class="bi bi-table"></i>
+              </a>
             </div>
           </div>
         </div>
 
-        <!-- Placeholder when no entries match or initial search demo -->
+        <!-- No Results Empty State -->
         {% if not entries %}
           <div class="text-center py-5 my-5 text-muted">
             <i class="bi bi-inbox display-4 d-block mb-3 text-secondary"></i>
@@ -57,17 +77,81 @@
             </a>
           </div>
         {% else %}
-          <!-- Entries List (Populated in future iterations) -->
-          <div class="entries-list d-flex flex-column gap-3">
-            {% for entry in entries %}
-              <div class="card shadow-sm">
-                <div class="card-body">
-                  <h5 class="card-title">{{ entry.title }}</h5>
-                  <p class="card-text text-muted">{{ entry.description }}</p>
-                </div>
-              </div>
-            {% endfor %}
-          </div>
+
+          <!-- Polymorphic Results Container -->
+          {% if display_type == 'gallery' %}
+            <div class="gallery-grid">
+              {% for entry in entries %}
+                {% include "components/entry_item.html" %}
+              {% endfor %}
+            </div>
+
+          {% elif display_type == 'standard' %}
+            <div class="standard-list">
+              {% for entry in entries %}
+                {% include "components/entry_item.html" %}
+              {% endfor %}
+            </div>
+
+          {% elif display_type == 'search-engine' %}
+            <div class="search-engine-list">
+              {% for entry in entries %}
+                {% include "components/entry_item.html" %}
+              {% endfor %}
+            </div>
+
+          {% elif display_type == 'content-centric' %}
+            <div class="content-centric-list">
+              {% for entry in entries %}
+                {% include "components/entry_item.html" %}
+              {% endfor %}
+            </div>
+
+          {% elif display_type == 'links-only' %}
+            <div class="table-responsive">
+              <table class="links-only-table">
+                <thead>
+                  <tr class="text-secondary small">
+                    <th style="width: 40px;"></th>
+                    <th>Title</th>
+                    <th>Source / Author</th>
+                    <th>Published</th>
+                    <th class="text-center">Votes</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for entry in entries %}
+                    {% include "components/entry_item.html" %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+          <!-- Pagination Bar -->
+          {% if total_pages > 1 %}
+            <nav class="d-flex justify-content-center my-4" aria-label="Search results pages">
+              <ul class="pagination pagination-sm shadow-sm rounded-pill">
+                <li class="page-item {{ 'disabled' if page <= 1 else '' }}">
+                  <a class="page-link" href="{{ url_for('entries.search_view', q=query, filter=active_filter, display=display_type, page=page - 1) }}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo; Previous</span>
+                  </a>
+                </li>
+                
+                <li class="page-item disabled">
+                  <span class="page-link text-body fw-semibold">Page {{ page }} of {{ total_pages }}</span>
+                </li>
+
+                <li class="page-item {{ 'disabled' if page >= total_pages else '' }}">
+                  <a class="page-link" href="{{ url_for('entries.search_view', q=query, filter=active_filter, display=display_type, page=page + 1) }}" aria-label="Next">
+                    <span aria-hidden="true">Next &raquo;</span>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+          {% endif %}
+
         {% endif %}
       </div>
     </div>

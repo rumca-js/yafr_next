@@ -84,6 +84,46 @@ class TestEntryRoutes(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("Flask Web Development", html)
 
+    def test_display_gallery_layout(self):
+        """GET /?q=Python&display=gallery renders gallery-grid container."""
+        response = self.client.get("/?q=Python&display=gallery")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("gallery-grid", html)
+        self.assertIn("gallery-card", html)
+
+    def test_display_standard_layout(self):
+        """GET /?q=Python&display=standard renders standard-list container."""
+        response = self.client.get("/?q=Python&display=standard")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("standard-list", html)
+        self.assertIn("standard-card", html)
+
+    def test_display_search_engine_layout(self):
+        """GET /?q=Python&display=search-engine renders search-engine-list."""
+        response = self.client.get("/?q=Python&display=search-engine")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("search-engine-list", html)
+        self.assertIn("search-engine-item", html)
+
+    def test_display_content_centric_layout(self):
+        """GET /?q=Python&display=content-centric renders Reddit-style layout."""
+        response = self.client.get("/?q=Python&display=content-centric")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("content-centric-list", html)
+        self.assertIn("content-centric-card", html)
+
+    def test_display_links_only_layout(self):
+        """GET /?q=Python&display=links-only renders high-density tabular view."""
+        response = self.client.get("/?q=Python&display=links-only")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("links-only-table", html)
+        self.assertIn("links-only-row", html)
+
     def test_404_error_handler(self):
         """Non-existent URL triggers custom 404 handler."""
         response = self.client.get("/non-existent-endpoint")
