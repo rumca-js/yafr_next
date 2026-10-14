@@ -306,6 +306,9 @@ The screen displays, where available:
  - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
  - when there are no jobs, then check if any of source requires refresh
 
+# Databases management
+It should be possible to download a new database .db file from the internet, or elsewhere.
+
 # Code Requirements
  - prefer having small server functions that returns JSON data.
     -- for example /api/source-disable/123 should disable source 123, and provide JSON response
