@@ -13,6 +13,12 @@ A database is a searchable collection of entries.
  - Active database file: `data/table.db` (used for local testing and development).
  - It is a HTML self-hosted app
 
+# Files
+Files describing project:
+ - ARCHITECTURE.md
+ - FILES.md
+ - URLS.md
+
 # Data
  - webtoolkit for network communication https://github.com/rumca-js/webtoolkit
 
@@ -74,6 +80,8 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - DatabaseView - shows database information
  - StatusView - shows status of app, if background task reading jobs is working
  - ConfigurationView - allows user to change configurationentry properties (display style)
+ - ExportView - provides ability to export data. Can export sources into OPML, pure link list, entries from linkdatamodel into lists of ilnks
+ - ImportView - provides ability to import data from files: JSON into linkdatamodel, or into sourcedatamodel, OMPL into sourcedatamodel
 
 It should be indicated if there are problems with Sources, or Jobs, if there are errors by some badges or indicators.
 

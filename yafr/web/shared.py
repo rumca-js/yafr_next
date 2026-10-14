@@ -2,9 +2,12 @@
 Shared helpers, constants, and utilities for YAFR web views.
 """
 
+import logging
 from typing import Any, Dict, Optional
 from flask import jsonify, Response
+from yafr.db import ConfigRepository, JobRepository, SourceRepository
 
+logger = logging.getLogger(__name__)
 
 # Display Styles
 DISPLAY_STYLE_LIGHT = "style-light"
@@ -59,16 +62,38 @@ def api_response(
 
 def get_shared_context() -> Dict[str, Any]:
     """
-    Returns application-wide context variables injected into templates.
+    Returns application-wide context variables injected into templates,
+    retrieving live configuration and operational badge counters from SQLite.
     """
+    active_theme = DISPLAY_STYLE_LIGHT
+    display_type = DISPLAY_TYPE_GALLERY
+    sources_outdated = 0
+    sources_errors = 0
+    jobs_errors = 0
+
+    try:
+        config_repo = ConfigRepository()
+        active_theme = config_repo.get_display_style()
+        display_type = config_repo.get_display_type()
+
+        source_repo = SourceRepository()
+        sources_outdated = source_repo.count_outdated_sources()
+        sources_errors = source_repo.count_error_sources()
+
+        job_repo = JobRepository()
+        jobs_errors = job_repo.count_error_jobs()
+    except Exception as err:
+        logger.debug("Could not read shared context from DB (using defaults): %s", err)
+
     return {
         "app_name": "YAFR",
         "app_tagline": "Yet Another Feed Reader",
         "entry_filters": ENTRY_FILTERS,
-        "active_theme": DISPLAY_STYLE_LIGHT,
+        "active_theme": active_theme,
+        "display_type": display_type,
         "badges": {
-            "sources_outdated": 0,
-            "sources_errors": 0,
-            "jobs_errors": 0,
+            "sources_outdated": sources_outdated,
+            "sources_errors": sources_errors,
+            "jobs_errors": jobs_errors,
         },
     }

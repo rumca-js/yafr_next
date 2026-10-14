@@ -1,17 +1,22 @@
 """
-Flask application factory.
+Flask application factory for YAFR.
 """
 
+import logging
 from flask import Flask, render_template
+from sqlalchemy.exc import SQLAlchemyError
 from yafr.config import Config
+from yafr.db import close_session, init_db
 from yafr.web import register_blueprints
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(config_object=None) -> Flask:
     """
     Constructs and configures the Flask application.
 
-    :param config_object: Optional configuration class
+    :param config_object: Optional configuration dict or class
     :return: Configured Flask application instance
     """
     app = Flask(
@@ -27,10 +32,37 @@ def create_app(config_object=None) -> Flask:
         else:
             app.config.from_object(config_object)
 
+    # Initialize SQLite database connection & schema
+    db_path = app.config.get("DATABASE_PATH", Config.DATABASE_PATH)
+    try:
+        init_db(db_path)
+    except Exception as err:
+        logger.error("Failed to initialize database at %s: %s", db_path, err)
+
+    # Teardown context hook to close scoped session
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        close_session()
+
     # Register routes and views
     register_blueprints(app)
 
     # Error Handlers
+    @app.errorhandler(SQLAlchemyError)
+    def database_error(error):
+        logger.error("Database error occurred: %s", error)
+        close_session()
+        return (
+            render_template(
+                "entries/list.html",
+                error_message=f"Database failure: {error}",
+                query="",
+                has_query=False,
+                entries=[],
+            ),
+            500,
+        )
+
     @app.errorhandler(404)
     def not_found_error(error):
         return (
