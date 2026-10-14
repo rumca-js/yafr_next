@@ -177,6 +177,38 @@ class SourceRepository(BaseRepository[SourcesTable]):
         self.session.commit()
         return True
 
+    def delete_sources(self, source_ids: List[int]) -> int:
+        """
+        Deletes multiple sources and their operational tracking data in batch.
+        Entries belonging to these sources have their source_id unlinked.
+
+        :param source_ids: List of source IDs to delete
+        :return: Number of deleted sources
+        """
+        if not source_ids:
+            return 0
+
+        # Delete operational data
+        self.session.execute(
+            delete(SourceOperationalData).where(
+                SourceOperationalData.source_id.in_(source_ids)
+            )
+        )
+
+        # Unlink entries associated with these sources
+        stmt = (
+            LinkDataModel.__table__.update()
+            .where(LinkDataModel.source_id.in_(source_ids))
+            .values(source_id=None)
+        )
+        self.session.execute(stmt)
+
+        res = self.session.execute(
+            delete(SourcesTable).where(SourcesTable.id.in_(source_ids))
+        )
+        self.session.commit()
+        return res.rowcount or 0
+
     def set_enabled(self, source_id: int, enabled: bool) -> bool:
         """
         Enables or disables a source.

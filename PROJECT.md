@@ -12,12 +12,14 @@
 A database is a searchable collection of entries.
  - Active database file: `data/table.db` (used for local testing and development).
  - It is a HTML self-hosted app
+ - do not run tests before starting work on a feature. Run it after feature is implemented
 
 # Files
 Files describing project:
  - ARCHITECTURE.md
  - FILES.md
  - URLS.md
+ - BUGS.md - if any bug is define should be solved
 
 # Data
  - webtoolkit for network communication https://github.com/rumca-js/webtoolkit
@@ -146,6 +148,7 @@ There are several list styles:
 
 ## Search
  - Search is performed against the selected database.
+ - Pressing search without any textual input should work, then all entries should be returned using specified order
  - there should be help somewhere which instructs user about the available syntax
  - Implement search input translation layer. Search should also support following operators:
     -- "=" acts like LIKE Sql operator. E.g. title=youtube shall find all entries with youtube in title
@@ -334,6 +337,7 @@ It should be possible to download a new database .db file from the internet, or 
  - Prefer simiplicity of calls and structure
  - When handling SQLite tables, then apply some storage limits. For example, we may store history of user searches. Do not allow for infinite growth, but allow only a fixed amount of entries to be added. New entries replace old ones. One exception is Entries. There is no limit for them
  - when creating views check if url can be accessed. Even if we don't have yet any 'permissions' we will be able to addd it later
+ - consider batch operations to obtain data. There can be many rows in link database.
 
 # General Requirements
  - The application must remain usable when the device is offline.

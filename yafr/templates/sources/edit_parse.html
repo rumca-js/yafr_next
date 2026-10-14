@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if is_new %}Add Parse Source{% else %}Edit {{ source.title }}{% endif %} - {{ app_name }}
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 max-w-800">
+
+  <!-- Breadcrumbs -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{{ url_for('sources.sources_list') }}">Sources</a></li>
+      {% if not is_new and source %}
+        <li class="breadcrumb-item"><a href="{{ url_for('sources.source_detail', id=source.id) }}">{{ source.title or source.url }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Edit Parse Source</li>
+      {% else %}
+        <li class="breadcrumb-item active" aria-current="page">New Parse Source</li>
+      {% endif %}
+    </ol>
+  </nav>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card shadow-sm border">
+    <div class="card-header bg-body py-3">
+      <h4 class="mb-0 fs-5 fw-bold d-flex align-items-center gap-2">
+        <i class="bi bi-code-slash text-success"></i>
+        <span>{% if is_new %}Configure HTML / XPath Parse Source{% else %}Edit Parse Source{% endif %}</span>
+      </h4>
+    </div>
+    <div class="card-body p-4">
+      <form method="POST">
+        <!-- Target Page URL -->
+        <div class="mb-3">
+          <label for="url" class="form-label fw-semibold">Target Web Page URL <span class="text-danger">*</span></label>
+          <input 
+            type="url" 
+            name="url" 
+            id="url" 
+            class="form-control" 
+            placeholder="https://news.ycombinator.com" 
+            value="{{ source.url if source else '' }}" 
+            required 
+            autofocus
+          >
+          <div class="form-text">Web page from which link elements will be extracted.</div>
+        </div>
+
+        <!-- Title Input -->
+        <div class="mb-3">
+          <label for="title" class="form-label fw-semibold">Display Title</label>
+          <input 
+            type="text" 
+            name="title" 
+            id="title" 
+            class="form-control" 
+            placeholder="e.g. Hacker News Frontpage" 
+            value="{{ source.title if source else '' }}"
+          >
+        </div>
+
+        <!-- XPath Expression -->
+        <div class="mb-3">
+          <label for="xpath" class="form-label fw-semibold">XPath Parser Expression</label>
+          <input 
+            type="text" 
+            name="xpath" 
+            id="xpath" 
+            class="form-control font-monospace" 
+            placeholder="//tr[@class='athing']//span[@class='titleline']/a" 
+            value="{{ source.xpath if source and source.xpath else '' }}"
+          >
+          <div class="form-text">Custom XPath targeting anchor (<code>&lt;a&gt;</code>) elements to extract links and titles.</div>
+        </div>
+
+        <!-- Auto Tags -->
+        <div class="mb-3">
+          <label for="auto_tag" class="form-label fw-semibold">Auto-Assign Tags</label>
+          <input 
+            type="text" 
+            name="auto_tag" 
+            id="auto_tag" 
+            class="form-control" 
+            placeholder="news, scraped, tech" 
+            value="{{ source.auto_tag if source and source.auto_tag else '' }}"
+          >
+        </div>
+
+        <!-- Enabled Status -->
+        <div class="form-check form-switch mb-4">
+          <input 
+            class="form-check-input" 
+            type="checkbox" 
+            role="switch" 
+            id="enabled" 
+            name="enabled" 
+            {% if is_new or (source and source.enabled) %}checked{% endif %}
+          >
+          <label class="form-check-label fw-semibold" for="enabled">Enable this source for background refresh</label>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+          <a href="{{ url_for('sources.sources_list') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+            <i class="bi bi-check2 me-1"></i>Save Parse Source
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

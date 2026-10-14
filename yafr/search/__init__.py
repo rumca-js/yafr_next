@@ -5,6 +5,10 @@ Search Translation and Query Engine Package Exports for YAFR.
 from yafr.search.filters import FilterRegistry, SYSTEM_FILTERS, SearchFilter
 from yafr.search.parser import ParsedQuery, SearchClause, SearchParser
 from yafr.search.query_builder import SearchQueryBuilder
+from yafr.search.source_query_builder import (
+    SOURCE_FILTERS,
+    SourceSearchQueryBuilder,
+)
 
 __all__ = [
     "SearchParser",
@@ -14,4 +18,6 @@ __all__ = [
     "FilterRegistry",
     "SYSTEM_FILTERS",
     "SearchQueryBuilder",
+    "SourceSearchQueryBuilder",
+    "SOURCE_FILTERS",
 ]

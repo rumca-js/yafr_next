@@ -56,3 +56,37 @@ code {
   border-radius: 0.25rem;
   background-color: rgba(var(--bs-secondary-rgb), 0.15);
 }
+
+.max-w-1200 {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#main-source-search-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.source-item-card {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.source-item-card:hover {
+  border-color: rgba(13, 110, 253, 0.35) !important;
+}
+
+.source-disabled {
+  opacity: var(--yafr-dead-alpha, 0.4);
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}

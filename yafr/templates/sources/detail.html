@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {{ source.title or source.url }} - Source Details
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4 max-w-1200">
+
+  <!-- Breadcrumb Navigation -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sources.sources_list') }}" class="text-decoration-none">
+          <i class="bi bi-rss me-1"></i>Sources
+        </a>
+      </li>
+      <li class="breadcrumb-item active text-truncate" style="max-width: 400px;" aria-current="page">
+        {{ source.title or source.url }}
+      </li>
+    </ol>
+  </nav>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm mb-4" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- Source Header Card -->
+  <div class="card mb-4 shadow-sm border">
+    <div class="card-body p-4">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        
+        <!-- Left: Large Favicon / Icon + Details -->
+        <div class="d-flex align-items-center gap-3">
+          {% if source.favicon %}
+            <img 
+              src="{{ source.favicon }}" 
+              alt="{{ source.title }}" 
+              class="rounded-3 border bg-body-tertiary" 
+              width="64" 
+              height="64" 
+              style="object-fit: cover;"
+              onerror="this.onerror=null;this.classList.add('d-none');this.nextElementSibling.classList.remove('d-none');"
+            >
+            <div class="rounded-3 border bg-body-tertiary d-none align-items-center justify-content-center" style="width:64px; height:64px;">
+              <i class="bi bi-rss fs-2 text-secondary"></i>
+            </div>
+          {% else %}
+            <div class="rounded-3 border bg-body-tertiary d-flex align-items-center justify-content-center" style="width:64px; height:64px;">
+              {% if source.source_type == 'EMAIL' %}
+                <i class="bi bi-envelope fs-2 text-info"></i>
+              {% elif source.source_type == 'PARSE' %}
+                <i class="bi bi-code-slash fs-2 text-success"></i>
+              {% else %}
+                <i class="bi bi-rss fs-2 text-warning"></i>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          <div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h2 class="h4 fw-bold mb-0">{{ source.title or source.url }}</h2>
+              
+              <!-- Badges -->
+              <span class="badge bg-secondary-subtle text-secondary border">
+                {{ source.source_type or 'RSS' }}
+              </span>
+
+              {% if source.enabled %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle" id="badge-source-status">
+                  <i class="bi bi-check-circle me-1"></i>Active
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border" id="badge-source-status">
+                  <i class="bi bi-dash-circle me-1"></i>Disabled
+                </span>
+              {% endif %}
+
+              {% if is_outdated %}
+                <span class="badge bg-danger rounded-pill">
+                  <i class="bi bi-exclamation-circle me-1"></i>Outdated (Fetch Required)
+                </span>
+              {% endif %}
+            </div>
+
+            <!-- Feed URL Link -->
+            <div class="text-muted small mt-1">
+              <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                {{ source.url }} <i class="bi bi-box-arrow-up-right ms-1 small"></i>
+              </a>
+            </div>
+
+            {% if source.auto_tag %}
+              <div class="mt-2">
+                <span class="badge bg-light text-secondary border small">{{ source.auto_tag }}</span>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Right: Primary Action Buttons -->
+        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+          <!-- Fetch / Update Button -->
+          <button 
+            type="button" 
+            class="btn btn-primary rounded-pill px-3" 
+            id="detail-fetch-btn"
+            data-source-id="{{ source.id }}"
+          >
+            <i class="bi bi-arrow-clockwise me-1" id="detail-fetch-icon"></i>
+            Fetch / Update
+          </button>
+
+          <!-- Toggle Enable/Disable Button -->
+          <button 
+            type="button" 
+            class="btn btn-outline-secondary rounded-pill px-3" 
+            id="detail-toggle-btn"
+            data-source-id="{{ source.id }}"
+            data-enabled="{{ 'true' if source.enabled else 'false' }}"
+          >
+            {% if source.enabled %}
+              <i class="bi bi-toggle-on text-success me-1"></i>Disable
+            {% else %}
+              <i class="bi bi-toggle-off text-muted me-1"></i>Enable
+            {% endif %}
+          </button>
+
+          <!-- Edit Button -->
+          {% if source.source_type == 'EMAIL' %}
+            <a href="{{ url_for('sources.source_edit_email', id=source.id) }}" class="btn btn-outline-secondary rounded-pill px-3">
+              <i class="bi bi-pencil me-1"></i>Edit
+            </a>
+          {% elif source.source_type == 'PARSE' %}
+            <a href="{{ url_for('sources.source_edit_parse', id=source.id) }}" class="btn btn-outline-secondary rounded-pill px-3">
+              <i class="bi bi-pencil me-1"></i>Edit
+            </a>
+          {% else %}
+            <a href="{{ url_for('sources.source_edit_rss', id=source.id) }}" class="btn btn-outline-secondary rounded-pill px-3">
+              <i class="bi bi-pencil me-1"></i>Edit
+            </a>
+          {% endif %}
+
+          <!-- Remove Button -->
+          <button 
+            type="button" 
+            class="btn btn-outline-danger rounded-pill px-3" 
+            data-bs-toggle="modal" 
+            data-bs-target="#deleteDetailModal"
+          >
+            <i class="bi bi-trash me-1"></i>Remove
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Metrics & Hash Status Grid -->
+  <div class="row g-3 mb-4">
+    <!-- Metric 1: Stored Entries -->
+    <div class="col-12 col-sm-6 col-md-3">
+      <div class="card h-100 shadow-sm border">
+        <div class="card-body">
+          <span class="text-secondary small fw-semibold text-uppercase">Stored Entries</span>
+          <div class="h3 fw-bold mt-2 mb-0 text-primary">
+            {{ "{:,}".format(total_entries_count) }}
+          </div>
+          <small class="text-muted">Extracted into linkdatamodel</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric 2: Consecutive Errors -->
+    <div class="col-12 col-sm-6 col-md-3">
+      <div class="card h-100 shadow-sm border">
+        <div class="card-body">
+          <span class="text-secondary small fw-semibold text-uppercase">Consecutive Errors</span>
+          <div class="h3 fw-bold mt-2 mb-0 {% if op_data and op_data.consecutive_errors > 0 %}text-danger{% else %}text-success{% endif %}">
+            {{ op_data.consecutive_errors if op_data and op_data.consecutive_errors is not none else 0 }}
+          </div>
+          <small class="text-muted">Cleared on successful fetch</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric 3: Last Fetched -->
+    <div class="col-12 col-sm-6 col-md-3">
+      <div class="card h-100 shadow-sm border">
+        <div class="card-body">
+          <span class="text-secondary small fw-semibold text-uppercase">Last Fetched</span>
+          <div class="fs-6 fw-semibold mt-2 mb-0 text-truncate" title="{{ op_data.date_fetched if op_data else '' }}">
+            {% if op_data and op_data.date_fetched %}
+              {{ op_data.date_fetched.strftime('%Y-%m-%d %H:%M') if op_data.date_fetched.strftime else op_data.date_fetched }}
+            {% else %}
+              Never
+            {% endif %}
+          </div>
+          <small class="text-muted">
+            {% if is_outdated %}
+              <span class="text-danger fw-semibold">Older than 1 hour</span>
+            {% else %}
+              <span class="text-success">Up to date</span>
+            {% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric 4: Last Successful Fetch -->
+    <div class="col-12 col-sm-6 col-md-3">
+      <div class="card h-100 shadow-sm border">
+        <div class="card-body">
+          <span class="text-secondary small fw-semibold text-uppercase">Last Success</span>
+          <div class="fs-6 fw-semibold mt-2 mb-0 text-truncate">
+            {% if op_data and op_data.date_successful_fetch %}
+              {{ op_data.date_successful_fetch.strftime('%Y-%m-%d %H:%M') if op_data.date_successful_fetch.strftime else op_data.date_successful_fetch }}
+            {% else %}
+              No recorded success
+            {% endif %}
+          </div>
+          <small class="text-muted">
+            Import: {{ op_data.import_seconds if op_data and op_data.import_seconds else '0' }}s
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Hashes Section -->
+  <div class="card mb-4 shadow-sm border">
+    <div class="card-header bg-body py-3">
+      <h5 class="mb-0 fs-6 fw-bold">
+        <i class="bi bi-hash me-1 text-primary"></i>Operational Hashes
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label text-secondary small fw-semibold">Page Hash (Entire Source Payload SHA-256)</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control font-monospace" readonly value="{{ page_hash_hex or 'None (Not yet hashed)' }}">
+          </div>
+          <small class="text-muted">Used to skip re-parsing when external feed hasn't changed.</small>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label text-secondary small fw-semibold">Body Hash (Feed Entries SHA-256)</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control font-monospace" readonly value="{{ body_hash_hex or 'None (Not yet hashed)' }}">
+          </div>
+          <small class="text-muted">Identifies structural changes to entries within the feed.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMAP Credentials Info (For Email sources) -->
+  {% if source.source_type == 'EMAIL' and credentials %}
+    <div class="card mb-4 shadow-sm border">
+      <div class="card-header bg-body py-3">
+        <h5 class="mb-0 fs-6 fw-bold">
+          <i class="bi bi-key me-1 text-info"></i>Configured IMAP Credentials
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <span class="text-secondary small fw-semibold">Username / Account:</span>
+            <div class="fw-bold">{{ credentials.username }}</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <span class="text-secondary small fw-semibold">Password Status:</span>
+            <div class="text-muted">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull; (Stored securely)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- XPath Expression (For Parse sources) -->
+  {% if source.source_type == 'PARSE' and source.xpath %}
+    <div class="card mb-4 shadow-sm border">
+      <div class="card-header bg-body py-3">
+        <h5 class="mb-0 fs-6 fw-bold">
+          <i class="bi bi-code-square me-1 text-success"></i>XPath Parser Expression
+        </h5>
+      </div>
+      <div class="card-body">
+        <code>{{ source.xpath }}</code>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Associated Link Entries Preview -->
+  <div class="card mb-4 shadow-sm border">
+    <div class="card-header bg-body py-3 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fs-6 fw-bold">
+        <i class="bi bi-link-45deg me-1 text-primary"></i>Extracted Entries ({{ total_entries_count }})
+      </h5>
+      <a href="{{ url_for('entries.search_view', q='url=' + source.url) }}" class="btn btn-outline-secondary btn-sm rounded-pill">
+        Search in Entries
+      </a>
+    </div>
+    <div class="card-body p-0">
+      {% if not entries %}
+        <div class="text-center py-4 text-muted small">
+          No entries have been extracted from this source yet. Click <strong>Fetch / Update</strong> above to fetch the latest feed items.
+        </div>
+      {% else %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 small">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 45%;">Title</th>
+                <th>Link</th>
+                <th>Published</th>
+                <th>Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in entries %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold text-truncate" style="max-width: 420px;" title="{{ entry.title }}">
+                      {{ entry.title }}
+                    </div>
+                  </td>
+                  <td>
+                    <a href="{{ entry.link }}" target="_blank" rel="noopener noreferrer" class="text-muted text-truncate d-inline-block" style="max-width: 300px;">
+                      {{ entry.link }} <i class="bi bi-box-arrow-up-right small ms-1"></i>
+                    </a>
+                  </td>
+                  <td class="text-muted text-nowrap">
+                    {% if entry.date_published %}
+                      {{ entry.date_published.strftime('%Y-%m-%d') if entry.date_published.strftime else entry.date_published }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="badge bg-secondary-subtle text-secondary border">
+                      {{ entry.page_rating_votes or 0 }}
+                    </span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: Delete Source Confirmation -->
+<div class="modal fade" id="deleteDetailModal" tabindex="-1" aria-labelledby="deleteDetailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger d-flex align-items-center gap-2" id="deleteDetailModalLabel">
+          <i class="bi bi-trash-fill"></i>
+          <span>Delete Source</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to permanently delete this source?</p>
+        <p class="fw-bold">{{ source.title or source.url }}</p>
+        <div class="alert alert-warning small mb-0">
+          This will delete operational metrics and hashes. Any stored entries will be unlinked.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger rounded-pill px-4" id="confirm-delete-detail-btn" data-source-id="{{ source.id }}">
+          Delete Source
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sources.js') }}"></script>
+<script>
+  $(document).ready(function() {
+    // Detail page fetch button
+    $('#detail-fetch-btn').on('click', function() {
+      const btn = $(this);
+      const icon = $('#detail-fetch-icon');
+      const sourceId = btn.data('source-id');
+
+      btn.prop('disabled', true);
+      icon.addClass('spin');
+
+      $.ajax({
+        url: `/api/sources/${sourceId}/fetch`,
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(resp) {
+          icon.removeClass('spin');
+          btn.prop('disabled', false);
+          if (resp.success) {
+            alert(resp.message || 'Fetch completed successfully.');
+            location.reload();
+          } else {
+            alert('Fetch error: ' + (resp.message || resp.error || 'Unknown error'));
+          }
+        },
+        error: function(xhr) {
+          icon.removeClass('spin');
+          btn.prop('disabled', false);
+          alert('Failed to trigger fetch: ' + (xhr.responseJSON?.error || xhr.statusText));
+        }
+      });
+    });
+
+    // Detail page toggle button
+    $('#detail-toggle-btn').on('click', function() {
+      const btn = $(this);
+      const sourceId = btn.data('source-id');
+      const isEnabled = btn.data('enabled') === 'true' || btn.data('enabled') === true;
+      const endpoint = isEnabled ? `/api/sources/${sourceId}/disable` : `/api/sources/${sourceId}/enable`;
+
+      $.ajax({
+        url: endpoint,
+        method: 'POST',
+        contentType: 'application/json',
+        success: function(resp) {
+          if (resp.success) {
+            location.reload();
+          }
+        },
+        error: function(xhr) {
+          alert('Failed to toggle source: ' + (xhr.responseJSON?.error || xhr.statusText));
+        }
+      });
+    });
+
+    // Detail page delete button
+    $('#confirm-delete-detail-btn').on('click', function() {
+      const sourceId = $(this).data('source-id');
+      $.ajax({
+        url: `/api/sources/${sourceId}`,
+        method: 'DELETE',
+        success: function(resp) {
+          if (resp.success) {
+            window.location.href = "{{ url_for('sources.sources_list') }}";
+          }
+        },
+        error: function(xhr) {
+          alert('Failed to delete source: ' + (xhr.responseJSON?.error || xhr.statusText));
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if is_new %}Add RSS Source{% else %}Edit {{ source.title }}{% endif %} - {{ app_name }}
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 max-w-800">
+
+  <!-- Breadcrumbs -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{{ url_for('sources.sources_list') }}">Sources</a></li>
+      {% if not is_new and source %}
+        <li class="breadcrumb-item"><a href="{{ url_for('sources.source_detail', id=source.id) }}">{{ source.title or source.url }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Edit RSS</li>
+      {% else %}
+        <li class="breadcrumb-item active" aria-current="page">New RSS Source</li>
+      {% endif %}
+    </ol>
+  </nav>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card shadow-sm border">
+    <div class="card-header bg-body py-3">
+      <h4 class="mb-0 fs-5 fw-bold d-flex align-items-center gap-2">
+        <i class="bi bi-rss text-warning"></i>
+        <span>{% if is_new %}Add New RSS / Atom Source{% else %}Edit RSS Source{% endif %}</span>
+      </h4>
+    </div>
+    <div class="card-body p-4">
+      <form method="POST">
+        <!-- URL Input -->
+        <div class="mb-3">
+          <label for="url" class="form-label fw-semibold">Feed URL <span class="text-danger">*</span></label>
+          <input 
+            type="url" 
+            name="url" 
+            id="url" 
+            class="form-control" 
+            placeholder="https://example.com/feed.xml" 
+            value="{{ source.url if source else '' }}" 
+            required 
+            autofocus
+          >
+          <div class="form-text">Direct URL to RSS, Atom, or XML feed endpoint.</div>
+        </div>
+
+        <!-- Title Input -->
+        <div class="mb-3">
+          <label for="title" class="form-label fw-semibold">Display Title</label>
+          <input 
+            type="text" 
+            name="title" 
+            id="title" 
+            class="form-control" 
+            placeholder="e.g. Ars Technica" 
+            value="{{ source.title if source else '' }}"
+          >
+          <div class="form-text">Optional human-readable title. Defaults to feed title or URL.</div>
+        </div>
+
+        <!-- Favicon URL -->
+        <div class="mb-3">
+          <label for="favicon" class="form-label fw-semibold">Favicon / Thumbnail URL</label>
+          <input 
+            type="url" 
+            name="favicon" 
+            id="favicon" 
+            class="form-control" 
+            placeholder="https://example.com/favicon.png" 
+            value="{{ source.favicon if source and source.favicon else '' }}"
+          >
+        </div>
+
+        <!-- Auto Tags -->
+        <div class="mb-3">
+          <label for="auto_tag" class="form-label fw-semibold">Auto-Assign Tags</label>
+          <input 
+            type="text" 
+            name="auto_tag" 
+            id="auto_tag" 
+            class="form-control" 
+            placeholder="tech, linux, podcasts" 
+            value="{{ source.auto_tag if source and source.auto_tag else '' }}"
+          >
+          <div class="form-text">Comma-separated tags to automatically attach to entries from this source.</div>
+        </div>
+
+        <!-- Category -->
+        <div class="mb-3">
+          <label for="category_name" class="form-label fw-semibold">Category</label>
+          <input 
+            type="text" 
+            name="category_name" 
+            id="category_name" 
+            class="form-control" 
+            placeholder="Technology" 
+            value="{{ source.category_name if source and source.category_name else '' }}"
+          >
+        </div>
+
+        <!-- Enabled Status -->
+        <div class="form-check form-switch mb-4">
+          <input 
+            class="form-check-input" 
+            type="checkbox" 
+            role="switch" 
+            id="enabled" 
+            name="enabled" 
+            {% if is_new or (source and source.enabled) %}checked{% endif %}
+          >
+          <label class="form-check-label fw-semibold" for="enabled">Enable this source for background refresh</label>
+          <div class="form-text">Disabled sources are skipped during automatic refresh and displayed with reduced opacity.</div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+          <a href="{{ url_for('sources.sources_list') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+            <i class="bi bi-check2 me-1"></i>Save Source
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

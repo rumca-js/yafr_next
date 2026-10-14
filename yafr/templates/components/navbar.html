@@ -12,12 +12,12 @@
     <div class="collapse navbar-collapse" id="navbarMain">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <a class="nav-link active" href="{{ url_for('entries.search_view') }}">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('entries.') %}active{% endif %}" href="{{ url_for('entries.search_view') }}">
             <i class="bi bi-search me-1"></i>Search
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-muted" href="#sources" title="Sources View (Coming soon)">
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('sources.') %}active{% endif %}" href="{{ url_for('sources.sources_list') }}" title="Sources View">
             <i class="bi bi-rss me-1"></i>Sources
             {% if badges.sources_outdated > 0 %}
               <span class="badge bg-danger rounded-pill ms-1">{{ badges.sources_outdated }}</span>

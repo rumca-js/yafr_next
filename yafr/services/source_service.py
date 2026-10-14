@@ -1,0 +1,339 @@
+"""
+Source Service Implementation for YAFR.
+
+Coordinates source lifecycle operations, single and batch fetching,
+operational hash checking (page_hash, body_hash), feed entry extraction
+into linkdatamodel, consecutive error tracking, and progress polling status.
+"""
+
+from datetime import datetime, timedelta, timezone
+import hashlib
+import logging
+import sys
+import threading
+from typing import Any, Dict, List, Optional
+import urllib.request
+import warnings
+from bs4 import MarkupResemblesLocatorWarning
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+import webtoolkit
+from linkarchivetools.model.definitions import (
+    LinkDataModel,
+    SourceOperationalData,
+    SourcesTable,
+)
+from yafr.db.session import get_session, session_scope
+from yafr.db.source_repository import SourceRepository
+
+logger = logging.getLogger(__name__)
+
+# Suppress BeautifulSoup markup locator warning
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
+
+# Apply webtoolkit email reader import bug workaround (ARCHITECTURE.md section 3.4)
+if "webtoolkit.utils" in sys.modules and "utils" not in sys.modules:
+    sys.modules["utils"] = sys.modules["webtoolkit.utils"]
+elif hasattr(webtoolkit, "utils") and "utils" not in sys.modules:
+    sys.modules["utils"] = webtoolkit.utils
+
+
+class SourceService:
+    """
+    Service coordinating source operations, feed fetching, and background batch updates.
+    """
+
+    _lock = threading.Lock()
+    _refresh_state: Dict[str, Any] = {
+        "is_running": False,
+        "total_sources": 0,
+        "completed_sources": 0,
+        "current_source_title": "",
+        "percentage": 0.0,
+        "errors_encountered": 0,
+    }
+
+    @classmethod
+    def get_refresh_status(cls) -> Dict[str, Any]:
+        """
+        Returns a thread-safe snapshot of the current batch refresh progress.
+        """
+        with cls._lock:
+            return dict(cls._refresh_state)
+
+    @classmethod
+    def start_batch_refresh(
+        cls,
+        source_ids: Optional[List[int]] = None,
+        include_errors: bool = True,
+    ) -> int:
+        """
+        Initiates a background thread to refresh outdated or error sources.
+
+        :param source_ids: Specific list of source IDs (if None, all outdated)
+        :param include_errors: Whether to also include sources with consecutive errors
+        :return: Count of queued sources
+        """
+        with cls._lock:
+            if cls._refresh_state["is_running"]:
+                return cls._refresh_state["total_sources"]
+
+        session = get_session()
+        source_repo = SourceRepository(session)
+
+        target_ids: List[int] = []
+        if source_ids:
+            target_ids = list(source_ids)
+        else:
+            # Query enabled outdated sources
+            outdated = source_repo.get_outdated_sources(max_age_seconds=3600)
+            target_ids = [s.id for s in outdated]
+
+            if include_errors:
+                # Add sources with consecutive errors
+                stmt = (
+                    select(SourcesTable.id)
+                    .join(
+                        SourceOperationalData,
+                        SourcesTable.id == SourceOperationalData.source_id,
+                    )
+                    .where(SourcesTable.enabled == True)
+                    .where(SourceOperationalData.consecutive_errors > 0)
+                )
+                error_ids = list(session.execute(stmt).scalars().all())
+                for eid in error_ids:
+                    if eid not in target_ids:
+                        target_ids.append(eid)
+
+        if not target_ids:
+            return 0
+
+        with cls._lock:
+            cls._refresh_state = {
+                "is_running": True,
+                "total_sources": len(target_ids),
+                "completed_sources": 0,
+                "current_source_title": "Starting batch refresh...",
+                "percentage": 0.0,
+                "errors_encountered": 0,
+            }
+
+        worker_thread = threading.Thread(
+            target=cls._run_batch_worker,
+            args=(target_ids,),
+            daemon=True,
+            name="SourceBatchRefresher",
+        )
+        worker_thread.start()
+        return len(target_ids)
+
+    @classmethod
+    def _run_batch_worker(cls, target_ids: List[int]) -> None:
+        """
+        Background worker thread executing sequential source fetches.
+        """
+        total = len(target_ids)
+        completed = 0
+        errors = 0
+
+        for s_id in target_ids:
+            source_title = f"Source #{s_id}"
+            try:
+                with session_scope() as session:
+                    source = session.get(SourcesTable, s_id)
+                    if source:
+                        source_title = source.title or source.url
+
+                with cls._lock:
+                    cls._refresh_state["current_source_title"] = source_title
+
+                res = cls.fetch_source(s_id)
+                if not res.get("success"):
+                    errors += 1
+            except Exception as err:
+                logger.error("Batch worker error fetching source %s: %s", s_id, err)
+                errors += 1
+
+            completed += 1
+            with cls._lock:
+                cls._refresh_state["completed_sources"] = completed
+                cls._refresh_state["errors_encountered"] = errors
+                cls._refresh_state["percentage"] = round((completed / total) * 100.0, 1)
+
+        with cls._lock:
+            cls._refresh_state["is_running"] = False
+            cls._refresh_state["current_source_title"] = "Batch refresh finished."
+
+    @classmethod
+    def fetch_source(
+        cls,
+        source_id: int,
+        session: Optional[Session] = None,
+    ) -> Dict[str, Any]:
+        """
+        Fetches a single source from the internet, verifies hashes, extracts feed entries,
+        and persists new LinkDataModel records.
+
+        :param source_id: ID of the source to refresh
+        :param session: Optional active database session
+        :return: Result dictionary with success, message, status, entries_added
+        """
+        if session is not None:
+            return cls._execute_fetch(source_id, session)
+        else:
+            with session_scope() as scoped_session:
+                return cls._execute_fetch(source_id, scoped_session)
+
+    @classmethod
+    def _execute_fetch(cls, source_id: int, session: Session) -> Dict[str, Any]:
+        source = session.get(SourcesTable, source_id)
+        if not source:
+            return {
+                "success": False,
+                "source_id": source_id,
+                "error": "Source not found",
+                "status": "error",
+            }
+
+        op_data = session.execute(
+            select(SourceOperationalData).where(
+                SourceOperationalData.source_id == source_id
+            )
+        ).scalar_one_or_none()
+
+        if op_data is None:
+            op_data = SourceOperationalData(
+                source_id=source_id,
+                consecutive_errors=0,
+                number_of_entries=0,
+            )
+            session.add(op_data)
+            session.flush()
+
+        # Download content
+        try:
+            req = urllib.request.Request(
+                source.url,
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (compatible; YAFR/1.0; +https://github.com/yafr/yafr)"
+                    ),
+                    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                content_bytes = resp.read()
+        except Exception as err:
+            logger.warning("Failed to fetch source %s (%s): %s", source_id, source.url, err)
+            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
+            op_data.date_fetched = datetime.now(timezone.utc)
+            session.commit()
+            return {
+                "success": False,
+                "source_id": source_id,
+                "error": f"Network download error: {err}",
+                "status": "error",
+            }
+
+        # Calculate hashes
+        page_hash = hashlib.sha256(content_bytes).digest()
+        body_hash = page_hash
+
+        # Check for operational hash equality
+        if op_data.page_hash and op_data.page_hash == page_hash:
+            logger.info("Source %s (%s) hash unchanged, skipping entry parse", source_id, source.title)
+            op_data.date_fetched = datetime.now(timezone.utc)
+            op_data.date_successful_fetch = datetime.now(timezone.utc)
+            op_data.consecutive_errors = 0
+            session.commit()
+            return {
+                "success": True,
+                "source_id": source_id,
+                "status": "unchanged",
+                "message": "Content unchanged (hash match).",
+                "entries_added": 0,
+            }
+
+        # Parse RSS / Feed entries
+        try:
+            content_str = content_bytes.decode("utf-8", errors="replace")
+            rss_page = webtoolkit.RssPage(source.url, content_str)
+            raw_entries = list(rss_page.get_entries()) if rss_page.is_valid() else []
+        except Exception as err:
+            logger.warning("Error parsing RSS feed for source %s: %s", source_id, err)
+            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
+            op_data.date_fetched = datetime.now(timezone.utc)
+            session.commit()
+            return {
+                "success": False,
+                "source_id": source_id,
+                "error": f"Feed parsing error: {err}",
+                "status": "error",
+            }
+
+        entries_added = 0
+        now_utc = datetime.now(timezone.utc)
+
+        for item in raw_entries:
+            link = (item.get("link") or "").strip()
+            if not link:
+                continue
+
+            # Prevent duplicate links in LinkDataModel
+            exists = session.execute(
+                select(LinkDataModel.id).where(LinkDataModel.link == link).limit(1)
+            ).scalar_one_or_none()
+
+            if exists is None:
+                title = item.get("title") or link
+                desc = item.get("description") or ""
+                thumb = item.get("thumbnail") or source.favicon
+                author = item.get("author") or ""
+                album = item.get("album") or ""
+                lang = item.get("language") or source.language or ""
+                date_published = item.get("date_published") or now_utc
+
+                entry = LinkDataModel(
+                    link=link,
+                    source_url=source.url,
+                    source_id=source.id,
+                    title=title,
+                    description=desc,
+                    thumbnail=thumb,
+                    author=author,
+                    album=album,
+                    language=lang,
+                    date_published=date_published,
+                    date_created=now_utc,
+                    date_update_last=now_utc,
+                    status_code=200,
+                    manual_status_code=200,
+                )
+                session.add(entry)
+                entries_added += 1
+
+        session.flush()
+
+        # Update operational metrics
+        total_source_entries = session.execute(
+            select(func.count(LinkDataModel.id)).where(
+                LinkDataModel.source_id == source.id
+            )
+        ).scalar() or 0
+
+        op_data.page_hash = page_hash
+        op_data.body_hash = body_hash
+        op_data.number_of_entries = total_source_entries
+        op_data.consecutive_errors = 0
+        op_data.date_fetched = now_utc
+        op_data.date_successful_fetch = now_utc
+
+        session.commit()
+
+        return {
+            "success": True,
+            "source_id": source_id,
+            "status": "completed",
+            "message": f"Successfully refreshed {source.title}: {entries_added} new entries added.",
+            "entries_added": entries_added,
+        }
