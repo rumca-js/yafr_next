@@ -8,7 +8,7 @@ backgroundjobhistory SQLite tables without external message brokers.
 from datetime import datetime, timezone
 import logging
 from typing import Any, List, Optional
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.orm import Session
 from linkarchivetools.model.definitions import BackgroundJob, BackgroundJobHistory
 from yafr.db.base_repository import BaseRepository
@@ -149,24 +149,36 @@ class JobRepository(BaseRepository[BackgroundJob]):
         order_by: str = "priority",
         limit: Optional[int] = None,
         offset: Optional[int] = None,
+        has_errors: Optional[bool] = None,
+        job_type: Optional[str] = None,
     ) -> List[BackgroundJob]:
         """
-        Lists background jobs with optional status filter and sorting.
+        Lists background jobs with optional status filter, type filter, and sorting.
 
         :param enabled: Optional filter by enabled state
-        :param order_by: Sorting column ('priority', 'date_created', 'errors')
+        :param order_by: Sorting column ('priority', 'date_created', 'errors', 'enabled')
         :param limit: Maximum rows to return
         :param offset: Number of rows to skip
+        :param has_errors: Optional filter for jobs with errors (True: errors > 0, False: errors == 0)
+        :param job_type: Optional filter by specific job type identifier
         :return: List of BackgroundJob instances
         """
         stmt = select(BackgroundJob)
         if enabled is not None:
             stmt = stmt.where(BackgroundJob.enabled == enabled)
+        if has_errors is True:
+            stmt = stmt.where(BackgroundJob.errors > 0)
+        elif has_errors is False:
+            stmt = stmt.where((BackgroundJob.errors == 0) | (BackgroundJob.errors.is_(None)))
+        if job_type:
+            stmt = stmt.where(BackgroundJob.job == job_type)
 
         if order_by == "date_created":
             stmt = stmt.order_by(BackgroundJob.date_created.desc())
         elif order_by == "errors":
-            stmt = stmt.order_by(BackgroundJob.errors.desc())
+            stmt = stmt.order_by(BackgroundJob.errors.desc(), BackgroundJob.priority.asc())
+        elif order_by == "enabled":
+            stmt = stmt.order_by(BackgroundJob.enabled.desc(), BackgroundJob.priority.asc())
         else:
             stmt = stmt.order_by(
                 BackgroundJob.priority.asc(), BackgroundJob.date_created.asc()
@@ -178,6 +190,41 @@ class JobRepository(BaseRepository[BackgroundJob]):
             stmt = stmt.limit(limit)
 
         return list(self.session.execute(stmt).scalars().all())
+
+    def count_jobs(
+        self,
+        enabled: Optional[bool] = None,
+        has_errors: Optional[bool] = None,
+        job_type: Optional[str] = None,
+    ) -> int:
+        """
+        Counts background jobs matching specified filters.
+
+        :param enabled: Optional filter by enabled state
+        :param has_errors: Optional filter for jobs with errors
+        :param job_type: Optional filter by specific job type identifier
+        :return: Total number of matching jobs
+        """
+        stmt = select(func.count(BackgroundJob.id))
+        if enabled is not None:
+            stmt = stmt.where(BackgroundJob.enabled == enabled)
+        if has_errors is True:
+            stmt = stmt.where(BackgroundJob.errors > 0)
+        elif has_errors is False:
+            stmt = stmt.where((BackgroundJob.errors == 0) | (BackgroundJob.errors.is_(None)))
+        if job_type:
+            stmt = stmt.where(BackgroundJob.job == job_type)
+
+        return self.session.execute(stmt).scalar() or 0
+
+    def get_distinct_job_types(self) -> List[str]:
+        """
+        Returns list of distinct job types currently present in the queue.
+
+        :return: List of distinct job names
+        """
+        stmt = select(distinct(BackgroundJob.job)).order_by(BackgroundJob.job)
+        return [str(j) for j in self.session.execute(stmt).scalars().all() if j]
 
     def delete_job(self, job_id: int) -> bool:
         """
@@ -193,6 +240,37 @@ class JobRepository(BaseRepository[BackgroundJob]):
         self.session.commit()
         return True
 
+    def delete_jobs(self, job_ids: List[int]) -> int:
+        """
+        Deletes multiple jobs by ID list.
+
+        :param job_ids: List of job IDs
+        :return: Number of deleted jobs
+        """
+        if not job_ids:
+            return 0
+        stmt = delete(BackgroundJob).where(BackgroundJob.id.in_(job_ids))
+        result = self.session.execute(stmt)
+        self.session.commit()
+        return result.rowcount or 0
+
+    def batch_set_status(self, job_ids: List[int], enabled: bool) -> int:
+        """
+        Pauses or resumes multiple jobs by ID list.
+
+        :param job_ids: List of job IDs
+        :param enabled: New enabled state
+        :return: Number of updated jobs
+        """
+        if not job_ids:
+            return 0
+        stmt = select(BackgroundJob).where(BackgroundJob.id.in_(job_ids))
+        jobs = list(self.session.execute(stmt).scalars().all())
+        for job in jobs:
+            job.enabled = enabled
+        self.session.commit()
+        return len(jobs)
+
     def count_error_jobs(self) -> int:
         """
         Counts jobs that have logged errors.
@@ -201,6 +279,17 @@ class JobRepository(BaseRepository[BackgroundJob]):
         """
         stmt = select(func.count(BackgroundJob.id)).where(BackgroundJob.errors > 0)
         return self.session.execute(stmt).scalar() or 0
+
+    def clear_all_jobs(self) -> int:
+        """
+        Clears all records in the backgroundjob table.
+
+        :return: Number of deleted rows
+        """
+        stmt = delete(BackgroundJob)
+        result = self.session.execute(stmt)
+        self.session.commit()
+        return result.rowcount or 0
 
     def clear_history(self) -> int:
         """

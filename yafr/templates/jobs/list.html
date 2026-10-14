@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} - Background Jobs{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+  <!-- Header -->
+  <div class="row justify-content-center mt-4">
+    <div class="col-12 col-xl-11">
+
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-cpu text-primary fs-4"></i>
+          <h4 class="mb-0">Background Jobs</h4>
+          {% if error_jobs_count > 0 %}
+            <span class="badge bg-danger rounded-pill ms-2" title="{{ error_jobs_count }} jobs with failures">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ error_jobs_count }} failing
+            </span>
+          {% endif %}
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <!-- Create Job Button -->
+          <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#createJobModal">
+            <i class="bi bi-plus-lg me-1"></i>Create Job
+          </button>
+        </div>
+      </div>
+
+      <!-- Filters & Sorting Bar -->
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body p-3">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+
+              <!-- Status Filter Dropdown -->
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm rounded-pill dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="bi bi-funnel me-1"></i>
+                  {% for sf in status_filters %}
+                    {% if sf.id == active_status %}{{ sf.name }}{% endif %}
+                  {% endfor %}
+                </button>
+                <ul class="dropdown-menu">
+                  {% for sf in status_filters %}
+                    <li>
+                      <a class="dropdown-item {% if sf.id == active_status %}active{% endif %}"
+                         href="{{ url_for('jobs.jobs_list', status=sf.id, job_type=active_type, order_by=order_by) }}">
+                        {% if sf.id == 'enabled' %}
+                          <i class="bi bi-play-circle text-success me-1"></i>
+                        {% elif sf.id == 'paused' %}
+                          <i class="bi bi-pause-circle text-secondary me-1"></i>
+                        {% elif sf.id == 'errors' %}
+                          <i class="bi bi-exclamation-triangle text-danger me-1"></i>
+                        {% else %}
+                          <i class="bi bi-list me-1"></i>
+                        {% endif %}
+                        {{ sf.name }}
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+
+              <!-- Job Type Filter Dropdown -->
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm rounded-pill dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="bi bi-tag me-1"></i>
+                  {% if active_type == 'all' %}All Types{% else %}{{ active_type }}{% endif %}
+                </button>
+                <ul class="dropdown-menu">
+                  <li>
+                    <a class="dropdown-item {% if active_type == 'all' %}active{% endif %}"
+                       href="{{ url_for('jobs.jobs_list', status=active_status, job_type='all', order_by=order_by) }}">
+                      All Types
+                    </a>
+                  </li>
+                  {% if job_types %}
+                    <li><hr class="dropdown-divider"></li>
+                    {% for jt in job_types %}
+                      <li>
+                        <a class="dropdown-item {% if active_type == jt %}active{% endif %}"
+                           href="{{ url_for('jobs.jobs_list', status=active_status, job_type=jt, order_by=order_by) }}">
+                          {{ jt }}
+                        </a>
+                      </li>
+                    {% endfor %}
+                  {% endif %}
+                </ul>
+              </div>
+
+              <!-- Order / Sort Dropdown -->
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary btn-sm rounded-pill dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="bi bi-arrow-down-up me-1"></i>
+                  {% for opt in order_options %}
+                    {% if opt.id == order_by %}{{ opt.name }}{% endif %}
+                  {% endfor %}
+                </button>
+                <ul class="dropdown-menu">
+                  {% for opt in order_options %}
+                    <li>
+                      <a class="dropdown-item {% if opt.id == order_by %}active{% endif %}"
+                         href="{{ url_for('jobs.jobs_list', status=active_status, job_type=active_type, order_by=opt.id) }}">
+                        {{ opt.name }}
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+
+              <!-- Clear Filters Button -->
+              {% if active_status != 'all' or active_type != 'all' or order_by != 'priority' %}
+                <a href="{{ url_for('jobs.jobs_list') }}" class="btn btn-link btn-sm text-decoration-none text-muted">
+                  <i class="bi bi-x-circle me-1"></i>Reset filters
+                </a>
+              {% endif %}
+            </div>
+
+            <!-- Total Results Info -->
+            <div class="text-secondary small">
+              <span>Showing <strong>{{ "{:,}".format(total_results) }}</strong> jobs</span>
+              {% if total_pages > 1 %}
+                <span class="text-muted">&middot; Page {{ page }} of {{ total_pages }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Action Floating / Toolbar -->
+      <div id="batch-action-bar" class="alert alert-primary py-2 px-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2 shadow-sm d-none">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-check2-square fs-5"></i>
+          <span class="fw-semibold"><span id="selected-jobs-count">0</span> jobs selected</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-warning btn-sm rounded-pill px-3" id="batch-pause-btn">
+            <i class="bi bi-pause-fill me-1"></i>Pause
+          </button>
+          <button type="button" class="btn btn-success btn-sm rounded-pill px-3 text-white" id="batch-resume-btn">
+            <i class="bi bi-play-fill me-1"></i>Resume
+          </button>
+          <button type="button" class="btn btn-danger btn-sm rounded-pill px-3" id="batch-delete-btn">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      {% if not jobs %}
+        <div class="text-center py-5 my-5 text-muted">
+          <i class="bi bi-cpu display-4 d-block mb-3 text-secondary"></i>
+          <h5>No background jobs found</h5>
+          <p class="text-secondary mb-3">
+            {% if active_status != 'all' or active_type != 'all' %}
+              No jobs match the selected filter criteria.
+              <br>
+              <a href="{{ url_for('jobs.jobs_list') }}" class="btn btn-outline-primary btn-sm rounded-pill mt-2">
+                Show All Jobs
+              </a>
+            {% else %}
+              There are currently no tasks queued in the background job queue.
+            {% endif %}
+          </p>
+        </div>
+      {% else %}
+
+        <!-- Jobs Table -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light small">
+                <tr>
+                  <th style="width: 40px;" class="text-center">
+                    <input class="form-check-input" type="checkbox" id="select-all-jobs" title="Select all on this page">
+                  </th>
+                  <th style="width: 80px;">ID</th>
+                  <th style="width: 140px;">Job Type</th>
+                  <th>Subject</th>
+                  <th style="width: 90px;" class="text-center">Priority</th>
+                  <th style="width: 90px;" class="text-center">Errors</th>
+                  <th style="width: 110px;" class="text-center">Status</th>
+                  <th style="width: 160px;">Created</th>
+                  <th style="width: 110px;" class="text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="jobs-table-body">
+                {% for job in jobs %}
+                  <tr id="job-row-{{ job.id }}" class="job-row {% if job.errors and job.errors > 0 %}table-warning bg-opacity-10{% endif %}">
+                    <!-- Checkbox -->
+                    <td class="text-center">
+                      <input class="form-check-input job-checkbox" type="checkbox" value="{{ job.id }}">
+                    </td>
+
+                    <!-- ID -->
+                    <td class="small text-muted font-monospace">#{{ job.id }}</td>
+
+                    <!-- Job Type -->
+                    <td>
+                      <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                        {{ job.job }}
+                      </span>
+                    </td>
+
+                    <!-- Subject / Target -->
+                    <td>
+                      {% if job.subject and (job.subject.startswith('http://') or job.subject.startswith('https://')) %}
+                        <a href="{{ job.subject }}" target="_blank" rel="noopener noreferrer" class="fw-semibold text-break d-inline-block text-decoration-none">
+                          {{ job.subject }} <i class="bi bi-box-arrow-up-right small"></i>
+                        </a>
+                      {% else %}
+                        <span class="fw-semibold text-break">{{ job.subject }}</span>
+                      {% endif %}
+
+                      {% if job.task %}
+                        <div class="text-muted small mt-1">
+                          <i class="bi bi-arrow-return-right me-1"></i>{{ job.task }}
+                        </div>
+                      {% endif %}
+
+                      {% if job.args %}
+                        <div class="text-muted small mt-1 font-monospace text-truncate" style="max-width: 320px;" title="{{ job.args }}">
+                          args: {{ job.args }}
+                        </div>
+                      {% endif %}
+                    </td>
+
+                    <!-- Priority -->
+                    <td class="text-center">
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis">
+                        P{{ job.priority }}
+                      </span>
+                    </td>
+
+                    <!-- Errors -->
+                    <td class="text-center" id="job-errors-{{ job.id }}">
+                      {% if job.errors and job.errors > 0 %}
+                        <span class="badge bg-danger" title="{{ job.errors }} failures recorded">
+                          <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ job.errors }}
+                        </span>
+                      {% else %}
+                        <span class="badge bg-light text-muted border">0</span>
+                      {% endif %}
+                    </td>
+
+                    <!-- Status -->
+                    <td class="text-center" id="job-status-col-{{ job.id }}">
+                      {% if job.enabled %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                          <i class="bi bi-play-fill me-1"></i>Active
+                        </span>
+                      {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                          <i class="bi bi-pause-fill me-1"></i>Paused
+                        </span>
+                      {% endif %}
+                    </td>
+
+                    <!-- Date Created -->
+                    <td class="small text-muted text-nowrap">
+                      {% if job.date_created %}
+                        {{ job.date_created.strftime('%Y-%m-%d %H:%M:%S') }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+
+                    <!-- Actions -->
+                    <td class="text-center text-nowrap">
+                      {% if job.enabled %}
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm toggle-job-btn"
+                                data-job-id="{{ job.id }}"
+                                data-action="pause"
+                                title="Pause job">
+                          <i class="bi bi-pause-fill"></i>
+                        </button>
+                      {% else %}
+                        <button type="button"
+                                class="btn btn-outline-success btn-sm toggle-job-btn"
+                                data-job-id="{{ job.id }}"
+                                data-action="resume"
+                                title="Resume job">
+                          <i class="bi bi-play-fill"></i>
+                        </button>
+                      {% endif %}
+                      <button type="button"
+                              class="btn btn-outline-danger btn-sm delete-single-job-btn ms-1"
+                              data-job-id="{{ job.id }}"
+                              title="Delete job">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        {% if total_pages > 1 %}
+          <nav class="d-flex justify-content-center mt-3 mb-5" aria-label="Jobs pagination">
+            <ul class="pagination pagination-sm flex-wrap justify-content-center">
+              <!-- Previous Button -->
+              <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                <a class="page-link"
+                   href="{{ url_for('jobs.jobs_list', status=active_status, job_type=active_type, order_by=order_by, page=page - 1) }}"
+                   aria-label="Previous">
+                  &laquo; Prev
+                </a>
+              </li>
+
+              <!-- Page Window -->
+              {% set start_p = [1, page - 2]|max %}
+              {% set end_p = [total_pages, start_p + 4]|min %}
+              {% if end_p - start_p < 4 %}
+                {% set start_p = [1, end_p - 4]|max %}
+              {% endif %}
+
+              {% for p in range(start_p, end_p + 1) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                  <a class="page-link"
+                     href="{{ url_for('jobs.jobs_list', status=active_status, job_type=active_type, order_by=order_by, page=p) }}">
+                    {{ p }}
+                  </a>
+                </li>
+              {% endfor %}
+
+              <!-- Next Button -->
+              <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                <a class="page-link"
+                   href="{{ url_for('jobs.jobs_list', status=active_status, job_type=active_type, order_by=order_by, page=page + 1) }}"
+                   aria-label="Next">
+                  Next &raquo;
+                </a>
+              </li>
+            </ul>
+          </nav>
+        {% endif %}
+
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: Create Job -->
+<div class="modal fade" id="createJobModal" tabindex="-1" aria-labelledby="createJobModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <div class="modal-header">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="createJobModalLabel">
+          <i class="bi bi-plus-circle text-primary"></i>
+          <span>Create Background Job</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="create-job-form">
+        <div class="modal-body">
+          <!-- Job Type -->
+          <div class="mb-3">
+            <label for="create-job-name" class="form-label small fw-semibold">Job Type <span class="text-danger">*</span></label>
+            <input list="job-types-datalist" type="text" class="form-control form-control-sm" id="create-job-name" name="job" required placeholder="e.g. process-source, link-update-data, cleanup">
+            <datalist id="job-types-datalist">
+              <option value="process-source">
+              <option value="link-update-data">
+              <option value="cleanup">
+              {% for jt in job_types %}
+                <option value="{{ jt }}">
+              {% endfor %}
+            </datalist>
+            <div class="form-text small">Select an existing type or type a custom job identifier.</div>
+          </div>
+
+          <!-- Subject -->
+          <div class="mb-3">
+            <label for="create-job-subject" class="form-label small fw-semibold">Subject / Target <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="create-job-subject" name="subject" required placeholder="URL, Source ID, Entry ID, or resource target">
+            <div class="form-text small">Target resource associated with this job.</div>
+          </div>
+
+          <!-- Priority -->
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label for="create-job-priority" class="form-label small fw-semibold">Priority</label>
+              <input type="number" class="form-control form-control-sm" id="create-job-priority" name="priority" value="1" min="0" max="100">
+              <div class="form-text small">Lower number = higher priority.</div>
+            </div>
+            <div class="col-6">
+              <label for="create-job-task" class="form-label small fw-semibold">Task (Optional)</label>
+              <input type="text" class="form-control form-control-sm" id="create-job-task" name="task" placeholder="Sub-task descriptor">
+            </div>
+          </div>
+
+          <!-- Args -->
+          <div class="mb-3">
+            <label for="create-job-args" class="form-label small fw-semibold">Arguments (Optional)</label>
+            <textarea class="form-control form-control-sm font-monospace" id="create-job-args" name="args" rows="2" placeholder='JSON string or argument payload, e.g. {"download_media": true}'></textarea>
+          </div>
+
+          <!-- Enabled switch -->
+          <div class="form-check form-switch mb-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="create-job-enabled" name="enabled" checked>
+            <label class="form-check-label small" for="create-job-enabled">Start enabled / active</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4" id="submit-create-job-btn">
+            <i class="bi bi-check-lg me-1"></i>Create Job
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirm Delete Job(s) -->
+<div class="modal fade" id="deleteJobModal" tabindex="-1" aria-labelledby="deleteJobModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger d-flex align-items-center gap-2" id="deleteJobModalLabel">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>Confirm Job Deletion</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="delete-job-modal-text">
+          Are you sure you want to permanently delete this background job?
+        </p>
+        <div class="alert alert-warning small mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          This operation cannot be undone. The task will be removed from the execution queue.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm rounded-pill px-4" id="confirm-delete-job-btn">
+          <i class="bi bi-trash me-1"></i>Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/jobs.js') }}"></script>
+{% endblock %}
