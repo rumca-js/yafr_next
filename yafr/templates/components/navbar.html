@@ -1,0 +1,60 @@
+<nav class="navbar navbar-expand-lg border-bottom sticky-top bg-body shadow-sm">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{{ url_for('entries.search_view') }}">
+      <i class="bi bi-compass text-primary fs-4"></i>
+      <span>{{ app_name }}</span>
+    </a>
+    
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarMain">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a class="nav-link active" href="{{ url_for('entries.search_view') }}">
+            <i class="bi bi-search me-1"></i>Search
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-muted" href="#sources" title="Sources View (Coming soon)">
+            <i class="bi bi-rss me-1"></i>Sources
+            {% if badges.sources_outdated > 0 %}
+              <span class="badge bg-danger rounded-pill ms-1">{{ badges.sources_outdated }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-muted" href="#jobs" title="Jobs View (Coming soon)">
+            <i class="bi bi-cpu me-1"></i>Jobs
+            {% if badges.jobs_errors > 0 %}
+              <span class="badge bg-warning text-dark rounded-pill ms-1">{{ badges.jobs_errors }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-muted" href="#rules" title="Entry Rules (Coming soon)">
+            <i class="bi bi-shield-check me-1"></i>Rules
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-muted" href="#database" title="Database Info (Coming soon)">
+            <i class="bi bi-database me-1"></i>Database
+          </a>
+        </li>
+      </ul>
+
+      <div class="d-flex align-items-center gap-2">
+        <!-- Online/Offline Indicator Badge -->
+        <span id="network-badge" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" title="Network status">
+          <i class="bi bi-wifi me-1"></i>Online
+        </span>
+
+        <!-- Theme Toggle Button -->
+        <button id="theme-toggle-btn" class="btn btn-outline-secondary btn-sm rounded-pill px-3" type="button" title="Toggle Light/Dark Theme">
+          <i class="bi bi-moon-stars me-1" id="theme-icon"></i><span id="theme-text">Dark</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>

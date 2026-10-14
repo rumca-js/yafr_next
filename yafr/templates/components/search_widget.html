@@ -1,0 +1,126 @@
+{% if not has_query %}
+<!-- Large Centered Search Box (When user has not searched yet) -->
+<div class="row justify-content-center align-items-center min-vh-75 py-5">
+  <div class="col-12 col-md-10 col-lg-8 text-center">
+    <div class="mb-4">
+      <i class="bi bi-compass display-1 text-primary"></i>
+      <h1 class="display-5 fw-bold mt-2">{{ app_name }}</h1>
+      <p class="text-secondary fs-5">{{ app_tagline }}</p>
+    </div>
+
+    <form method="GET" action="{{ url_for('entries.search_view') }}" class="mb-3">
+      <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden border">
+        <span class="input-group-text bg-body border-0 ps-4">
+          <i class="bi bi-search text-secondary"></i>
+        </span>
+        <input 
+          type="text" 
+          name="q" 
+          id="main-search-input"
+          class="form-control border-0 py-3 fs-5" 
+          placeholder="Search entries (e.g. title=news, tag:python, ==exact)..." 
+          value="{{ query }}"
+          autocomplete="off"
+          autofocus
+        >
+        <button class="btn btn-primary px-4 fw-semibold" type="submit">
+          Search
+        </button>
+      </div>
+
+      <!-- Filters & Quick Actions -->
+      <div class="d-flex flex-wrap justify-content-center align-items-center gap-2 mt-3">
+        <div class="btn-group" role="group" aria-label="Search filter">
+          {% for f in filters %}
+            <input 
+              type="radio" 
+              class="btn-check" 
+              name="filter" 
+              id="filter-{{ f.id }}" 
+              value="{{ f.id }}"
+              autocomplete="off"
+              {% if f.id == active_filter %}checked{% endif %}
+            >
+            <label class="btn btn-outline-secondary btn-sm" for="filter-{{ f.id }}">
+              {{ f.name }}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    </form>
+
+    <!-- Syntax Hint Accordion / Help -->
+    <div class="mt-4 text-start">
+      <small class="text-muted d-block text-center">
+        Supported operators: <code>=</code> (LIKE search, e.g. <code>title=youtube</code>), <code>==</code> (exact match, e.g. <code>title==news</code>).
+      </small>
+    </div>
+  </div>
+</div>
+
+{% else %}
+
+<!-- Compact Top Search Bar (When query is active) -->
+<div class="bg-body border-bottom py-3 mb-4 shadow-sm">
+  <div class="container-fluid px-4">
+    <form method="GET" action="{{ url_for('entries.search_view') }}" class="row g-2 align-items-center">
+      <div class="col-12 col-md-6 col-lg-7">
+        <div class="input-group rounded-pill overflow-hidden border">
+          <span class="input-group-text bg-body border-0 ps-3">
+            <i class="bi bi-search text-secondary"></i>
+          </span>
+          <input 
+            type="text" 
+            name="q" 
+            class="form-control border-0 py-2" 
+            placeholder="Search entries..." 
+            value="{{ query }}"
+            autocomplete="off"
+          >
+          {% if query %}
+            <a href="{{ url_for('entries.search_view') }}" class="btn btn-outline-secondary border-0" title="Clear query">
+              <i class="bi bi-x-lg"></i>
+            </a>
+          {% endif %}
+          <button class="btn btn-primary px-4 fw-semibold" type="submit">
+            Search
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Dropdown & Actions -->
+      <div class="col-12 col-md-6 col-lg-5 d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle rounded-pill" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-funnel me-1"></i>
+            {% for f in filters %}
+              {% if f.id == active_filter %}{{ f.name }}{% endif %}
+            {% endfor %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow">
+            {% for f in filters %}
+              <li>
+                <a class="dropdown-item {% if f.id == active_filter %}active{% endif %}" href="{{ url_for('entries.search_view', q=query, filter=f.id) }}">
+                  {{ f.name }}
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" title="Add new entry">
+          <i class="bi bi-plus-lg me-1"></i>Add Entry
+        </button>
+
+        <button type="button" class="btn btn-outline-success btn-sm rounded-pill" title="Mark all entries as read">
+          <i class="bi bi-check2-all me-1"></i>Mark All Read
+        </button>
+
+        <a href="#top" class="btn btn-outline-secondary btn-sm rounded-pill" title="Navigate to top">
+          <i class="bi bi-arrow-up"></i>
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}

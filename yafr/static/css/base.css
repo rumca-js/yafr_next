@@ -1,0 +1,58 @@
+/* YAFR Core Stylesheet */
+
+:root {
+  --yafr-primary: #0d6efd;
+  --yafr-visit-alpha: 0.6;
+  --yafr-dead-alpha: 0.4;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.min-vh-75 {
+  min-height: 75vh;
+}
+
+.max-w-800 {
+  max-width: 800px;
+}
+
+/* Search Input Styling */
+#main-search-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.input-group:focus-within {
+  border-color: var(--yafr-primary) !important;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Alpha styling for visited and dead entries as specified in PROJECT.md */
+.entry-visited {
+  opacity: var(--yafr-visit-alpha);
+}
+
+.entry-dead {
+  opacity: var(--yafr-dead-alpha);
+}
+
+.entry-bookmarked,
+.entry-voted {
+  opacity: 1.0 !important;
+}
+
+/* Navigation enhancements */
+.navbar-brand {
+  letter-spacing: -0.5px;
+}
+
+/* Code snippet styling */
+code {
+  font-size: 0.875em;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+  background-color: rgba(var(--bs-secondary-rgb), 0.15);
+}

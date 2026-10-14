@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if has_query %}
+    {{ query }} - {{ app_name }} Search
+  {% else %}
+    {{ app_name }} - Search
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+  <!-- Search Widget Component -->
+  {% include "components/search_widget.html" %}
+
+  {% if error_message %}
+    <div class="alert alert-danger d-flex align-items-center mt-3 mx-auto max-w-800" role="alert">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2 fs-5"></i>
+      <div>{{ error_message }}</div>
+    </div>
+  {% endif %}
+
+  <!-- Search Results Container (Shown when a query has been entered) -->
+  {% if has_query %}
+    <div class="row justify-content-center">
+      <div class="col-12 col-xl-10">
+        <!-- Results Header / Metadata Bar -->
+        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+          <div class="text-secondary small">
+            Found <strong>{{ total_results }}</strong> results for <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ query }}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="text-secondary small">Display:</span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Display style">
+              <button type="button" class="btn btn-outline-secondary active" title="Standard layout">
+                <i class="bi bi-view-list"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" title="Gallery layout">
+                <i class="bi bi-grid-3x3-gap"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary" title="Search engine layout">
+                <i class="bi bi-card-text"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Placeholder when no entries match or initial search demo -->
+        {% if not entries %}
+          <div class="text-center py-5 my-5 text-muted">
+            <i class="bi bi-inbox display-4 d-block mb-3 text-secondary"></i>
+            <h5>No entries found</h5>
+            <p class="text-secondary mb-3">No matching records found for "<code>{{ query }}</code>" in local SQLite database.</p>
+            <a href="{{ url_for('entries.search_view') }}" class="btn btn-outline-primary btn-sm rounded-pill">
+              Clear Search
+            </a>
+          </div>
+        {% else %}
+          <!-- Entries List (Populated in future iterations) -->
+          <div class="entries-list d-flex flex-column gap-3">
+            {% for entry in entries %}
+              <div class="card shadow-sm">
+                <div class="card-body">
+                  <h5 class="card-title">{{ entry.title }}</h5>
+                  <p class="card-text text-muted">{{ entry.description }}</p>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}
