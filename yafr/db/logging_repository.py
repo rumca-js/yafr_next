@@ -8,7 +8,7 @@ with standard severity levels and FIFO retention management.
 from datetime import datetime, timezone
 import logging
 from typing import List, Optional
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 from linkarchivetools.model.definitions import AppLogging
 from yafr.db.base_repository import BaseRepository
@@ -84,6 +84,32 @@ class LoggingRepository(BaseRepository[AppLogging]):
             stmt = stmt.limit(limit)
 
         return list(self.session.execute(stmt).scalars().all())
+
+    def count_logs(self, min_level: Optional[int] = None) -> int:
+        """
+        Counts log entries matching optional severity filter.
+
+        :param min_level: Optional minimum severity level filter
+        :return: Total count of matching log entries
+        """
+        stmt = select(func.count(AppLogging.id))
+        if min_level is not None:
+            stmt = stmt.where(AppLogging.level >= min_level)
+        return self.session.execute(stmt).scalar() or 0
+
+    def delete_log(self, log_id: int) -> bool:
+        """
+        Deletes a single log entry by ID.
+
+        :param log_id: Primary key of the log entry
+        :return: True if deleted, False if not found
+        """
+        entry = self.get_by_id(AppLogging, log_id)
+        if not entry:
+            return False
+        self.session.delete(entry)
+        self.session.commit()
+        return True
 
     def clear_logs(self) -> int:
         """

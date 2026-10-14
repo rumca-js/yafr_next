@@ -3,8 +3,9 @@ Web layer blueprints registration.
 """
 
 from flask import Flask
-from yafr.web.api import api_entries_bp, api_history_bp, api_sources_bp
+from yafr.web.api import api_entries_bp, api_history_bp, api_logs_bp, api_sources_bp
 from yafr.web.routes_entries import entries_bp
+from yafr.web.routes_logs import logs_bp
 from yafr.web.routes_sources import sources_bp
 from yafr.web.shared import get_shared_context
 
@@ -15,8 +16,10 @@ def register_blueprints(app: Flask) -> None:
     """
     app.register_blueprint(entries_bp)
     app.register_blueprint(sources_bp)
+    app.register_blueprint(logs_bp)
     app.register_blueprint(api_entries_bp)
     app.register_blueprint(api_history_bp)
+    app.register_blueprint(api_logs_bp)
     app.register_blueprint(api_sources_bp)
 
     @app.context_processor
