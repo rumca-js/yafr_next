@@ -12,7 +12,6 @@ import logging
 import sys
 import threading
 from typing import Any, Dict, List, Optional
-import urllib.request
 import warnings
 from bs4 import MarkupResemblesLocatorWarning
 from sqlalchemy import func, select
@@ -25,6 +24,7 @@ from linkarchivetools.model.definitions import (
 )
 from yafr.db.session import get_session, session_scope
 from yafr.db.source_repository import SourceRepository
+from yafr.services.webtools_service import WebToolsWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -195,11 +195,15 @@ class SourceService:
                 "status": "error",
             }
 
-        op_data = session.execute(
-            select(SourceOperationalData).where(
-                SourceOperationalData.source_id == source_id
+        op_data = (
+            session.execute(
+                select(SourceOperationalData).where(
+                    SourceOperationalData.source_id == source_id
+                )
             )
-        ).scalar_one_or_none()
+            .scalars()
+            .first()
+        )
 
         if op_data is None:
             op_data = SourceOperationalData(
@@ -210,21 +214,41 @@ class SourceService:
             session.add(op_data)
             session.flush()
 
-        # Download content
+        # Download content using WebToolsWrapper (BaseUrl / RemoteUrl)
         try:
-            req = urllib.request.Request(
-                source.url,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (compatible; YAFR/1.0; +https://github.com/yafr/yafr)"
-                    ),
-                    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-                },
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                content_bytes = resp.read()
+            web_client = WebToolsWrapper(url=source.url, session=session, timeout_s=15)
+            response = web_client.get_response()
+            if response is None:
+                raise ConnectionError(
+                    f"Failed to fetch content from {source.url} (no response received)"
+                )
+
+            if not response.is_valid():
+                status = response.get_status_code()
+                err_detail = (
+                    "; ".join(response.errors)
+                    if getattr(response, "errors", None)
+                    else ""
+                )
+                raise ConnectionError(
+                    f"HTTP status {status} when fetching {source.url}"
+                    + (f": {err_detail}" if err_detail else "")
+                )
+
+            content_str = web_client.get_text()
+            if content_str is None:
+                raise ValueError(f"No text content returned for source {source.url}")
+
+            content_binary = response.get_binary()
+            if content_binary is not None:
+                content_bytes = content_binary
+            else:
+                content_bytes = content_str.encode("utf-8", errors="replace")
+
         except Exception as err:
-            logger.warning("Failed to fetch source %s (%s): %s", source_id, source.url, err)
+            logger.warning(
+                "Failed to fetch source %s (%s): %s", source_id, source.url, err
+            )
             op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
             op_data.date_fetched = datetime.now(timezone.utc)
             session.commit()
@@ -241,7 +265,11 @@ class SourceService:
 
         # Check for operational hash equality
         if op_data.page_hash and op_data.page_hash == page_hash:
-            logger.info("Source %s (%s) hash unchanged, skipping entry parse", source_id, source.title)
+            logger.info(
+                "Source %s (%s) hash unchanged, skipping entry parse",
+                source_id,
+                source.title,
+            )
             op_data.date_fetched = datetime.now(timezone.utc)
             op_data.date_successful_fetch = datetime.now(timezone.utc)
             op_data.consecutive_errors = 0
@@ -256,9 +284,10 @@ class SourceService:
 
         # Parse RSS / Feed entries
         try:
-            content_str = content_bytes.decode("utf-8", errors="replace")
             rss_page = webtoolkit.RssPage(source.url, content_str)
             raw_entries = list(rss_page.get_entries()) if rss_page.is_valid() else []
+            if not raw_entries and hasattr(web_client, "get_entries"):
+                raw_entries = web_client.get_entries() or []
         except Exception as err:
             logger.warning("Error parsing RSS feed for source %s: %s", source_id, err)
             op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
@@ -315,11 +344,14 @@ class SourceService:
         session.flush()
 
         # Update operational metrics
-        total_source_entries = session.execute(
-            select(func.count(LinkDataModel.id)).where(
-                LinkDataModel.source_id == source.id
-            )
-        ).scalar() or 0
+        total_source_entries = (
+            session.execute(
+                select(func.count(LinkDataModel.id)).where(
+                    LinkDataModel.source_id == source.id
+                )
+            ).scalar()
+            or 0
+        )
 
         op_data.page_hash = page_hash
         op_data.body_hash = body_hash

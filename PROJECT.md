@@ -352,7 +352,7 @@ It should be possible to download a new database .db file from the internet, or 
  - use reasonable directory structure. UI elements, or components should have their directories, controller logic should be separated, model, etc.
  - Network operations must not block the UI thread.
  - Network failures must be handled gracefully.
- - Use webtoolkit.Url to read links, RSS sources, parse sources
+ - Use webtoolkit.BaseUrl or webtoolkit.RemoteUrl to read links, RSS sources, parse sources
  - Database failures must be reported to the user (eg. SQLite errors).
  - Long-running operations must expose their current state.
  - Destructive operations must require user confirmation.

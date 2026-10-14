@@ -6,5 +6,18 @@ from yafr.services.config_service import ConfigService
 from yafr.services.database_service import DatabaseService
 from yafr.services.job_service import JobService
 from yafr.services.source_service import SourceService
+from yafr.services.webtools_service import (
+    WebToolkitWrapper,
+    WebToolsService,
+    WebToolsWrapper,
+)
 
-__all__ = ["ConfigService", "DatabaseService", "JobService", "SourceService"]
+__all__ = [
+    "ConfigService",
+    "DatabaseService",
+    "JobService",
+    "SourceService",
+    "WebToolsService",
+    "WebToolsWrapper",
+    "WebToolkitWrapper",
+]
