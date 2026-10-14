@@ -9,3 +9,6 @@
  - provide docker compose script and Dockerfile
  - On hold - introduce system operations table
  - if database file is replaced, how thread should be restarted?
+ - provide ability to block entries
+ - provide ability to add many sources
+ - provide ability to add many entries
