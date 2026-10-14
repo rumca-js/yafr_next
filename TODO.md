@@ -12,3 +12,4 @@
  - provide ability to block entries
  - provide ability to add many sources
  - provide ability to add many entries
+ - provide dbupdate scripts
