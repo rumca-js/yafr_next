@@ -17,8 +17,8 @@ api_entries_bp = Blueprint("api_entries", __name__, url_prefix="/api/entries")
 @api_entries_bp.route("/<int:entry_id>/vote", methods=["POST"])
 def vote_entry(entry_id: int):
     """
-    Submits a user rating vote for an entry.
-    Supports either explicit 'vote' integer (-100 to 100) or 'direction' ('up' / 'down').
+    Sets a user rating vote for an entry to an explicit number between -100 and 100.
+    The vote value is set directly without increasing or decreasing.
     """
     session = get_session()
     repo = EntryRepository(session)
@@ -27,27 +27,34 @@ def vote_entry(entry_id: int):
         return api_response(success=False, error="Entry not found", status_code=404)
 
     payload = request.get_json(silent=True) or {}
-    current_votes = entry.page_rating_votes or 0
+    if "vote" not in payload:
+        return api_response(
+            success=False,
+            error="Missing 'vote' number in request payload",
+            status_code=400,
+        )
 
-    if "vote" in payload:
-        try:
-            target_vote = int(payload["vote"])
-        except (ValueError, TypeError):
-            return api_response(
-                success=False, error="Invalid vote integer", status_code=400
-            )
-    elif "direction" in payload:
-        direction = str(payload["direction"]).lower()
-        delta = 1 if direction == "up" else (-1 if direction == "down" else 0)
-        target_vote = current_votes + delta
-    else:
-        target_vote = current_votes + 1
+    try:
+        vote_value = int(payload["vote"])
+    except (ValueError, TypeError):
+        return api_response(
+            success=False,
+            error="Vote must be a valid number",
+            status_code=400,
+        )
 
-    new_votes = repo.vote_entry(entry_id, target_vote)
+    if vote_value < -100 or vote_value > 100:
+        return api_response(
+            success=False,
+            error="Vote must be between -100 and 100",
+            status_code=400,
+        )
+
+    new_votes = repo.vote_entry(entry_id, vote_value)
     return api_response(
         success=True,
         data={"entry_id": entry_id, "page_rating_votes": new_votes},
-        message="Vote recorded",
+        message=f"Vote set to {new_votes}",
     )
 
 

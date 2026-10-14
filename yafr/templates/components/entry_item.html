@@ -103,17 +103,9 @@
 
     <!-- Card Action Buttons -->
     <div class="gallery-actions">
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-secondary btn-vote-up" data-id="{{ entry.id }}" title="Vote Up">
-          <i class="bi bi-arrow-up-short"></i>
-        </button>
-        <span class="btn btn-outline-secondary disabled fw-semibold px-2 score-badge" data-id="{{ entry.id }}">
-          {{ entry.page_rating_votes or 0 }}
-        </span>
-        <button class="btn btn-outline-secondary btn-vote-down" data-id="{{ entry.id }}" title="Vote Down">
-          <i class="bi bi-arrow-down-short"></i>
-        </button>
-      </div>
+      <button class="btn btn-sm btn-outline-secondary btn-set-vote" data-id="{{ entry.id }}" data-current="{{ entry.page_rating_votes or 0 }}" title="Set vote (-100 to 100)">
+        <i class="bi bi-star me-1 text-warning"></i><span class="score-badge" data-id="{{ entry.id }}">{{ entry.page_rating_votes or 0 }}</span>
+      </button>
 
       <button class="btn btn-sm btn-outline-primary rounded-pill btn-read-later {{ 'active' if is_read_later else '' }}" data-id="{{ entry.id }}" title="Read Later">
         <i class="bi bi-clock{{ '-fill' if is_read_later else '' }}"></i>
@@ -207,17 +199,9 @@
         </div>
 
         <div class="d-flex align-items-center gap-2">
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-secondary btn-vote-up" data-id="{{ entry.id }}" title="Vote Up">
-              <i class="bi bi-arrow-up-short"></i>
-            </button>
-            <span class="btn btn-outline-secondary disabled fw-semibold px-2 score-badge" data-id="{{ entry.id }}">
-              {{ entry.page_rating_votes or 0 }}
-            </span>
-            <button class="btn btn-outline-secondary btn-vote-down" data-id="{{ entry.id }}" title="Vote Down">
-              <i class="bi bi-arrow-down-short"></i>
-            </button>
-          </div>
+          <button class="btn btn-sm btn-outline-secondary btn-set-vote" data-id="{{ entry.id }}" data-current="{{ entry.page_rating_votes or 0 }}" title="Set vote (-100 to 100)">
+            <i class="bi bi-star me-1 text-warning"></i>Vote: <strong class="score-badge ms-1" data-id="{{ entry.id }}">{{ entry.page_rating_votes or 0 }}</strong>
+          </button>
 
           <button class="btn btn-sm btn-outline-primary rounded-pill btn-read-later {{ 'active' if is_read_later else '' }}" data-id="{{ entry.id }}" title="Read Later">
             <i class="bi bi-clock{{ '-fill' if is_read_later else '' }} me-1"></i>Later
@@ -290,16 +274,12 @@
 {% elif display_type == 'content-centric' %}
 <div class="content-centric-card shadow-sm {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}">
   <!-- Left Vote Column -->
-  <div class="content-vote-col">
-    <button class="content-vote-btn btn-vote-up" data-id="{{ entry.id }}" title="Upvote">
-      <i class="bi bi-arrow-up"></i>
-    </button>
+  <div class="content-vote-col btn-set-vote" data-id="{{ entry.id }}" data-current="{{ entry.page_rating_votes or 0 }}" style="cursor: pointer;" title="Click to set vote (-100 to 100)">
+    <i class="bi bi-star text-warning fs-5"></i>
     <span class="content-vote-score score-badge" data-id="{{ entry.id }}">
       {{ entry.page_rating_votes or 0 }}
     </span>
-    <button class="content-vote-btn btn-vote-down" data-id="{{ entry.id }}" title="Downvote">
-      <i class="bi bi-arrow-down"></i>
-    </button>
+    <small class="text-muted" style="font-size: 0.65rem;">VOTE</small>
   </div>
 
   <!-- Main Content Body -->
@@ -404,11 +384,8 @@
   </td>
   <td>
     <div class="btn-group btn-group-sm">
-      <button class="btn btn-sm btn-outline-secondary btn-vote-up" data-id="{{ entry.id }}" title="Vote Up">
-        <i class="bi bi-arrow-up-short"></i>
-      </button>
-      <button class="btn btn-sm btn-outline-secondary btn-vote-down" data-id="{{ entry.id }}" title="Vote Down">
-        <i class="bi bi-arrow-down-short"></i>
+      <button class="btn btn-sm btn-outline-secondary btn-set-vote" data-id="{{ entry.id }}" data-current="{{ entry.page_rating_votes or 0 }}" title="Set vote (-100 to 100)">
+        <i class="bi bi-star text-warning"></i>
       </button>
       <button class="btn btn-sm btn-outline-warning btn-bookmark" data-id="{{ entry.id }}" title="Bookmark">
         <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }}"></i>

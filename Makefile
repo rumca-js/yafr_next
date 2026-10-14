@@ -15,7 +15,7 @@ install:
 
 ## test: Run automated tests
 test:
-	@poetry run pytest -v
+	@$(PYTHON) -m unittest discover tests -v
 
 ## format: Format Python codebase with black
 format:

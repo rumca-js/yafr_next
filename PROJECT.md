@@ -192,7 +192,7 @@ The screen displays, where available:
  - Tags, followed with pen icon to edit tags
  - Source information
  - Buttons for some operations like: "Check status", "Add vote"
-   -- vote allows user to input digit between -100 and 100
+   -- vote allows user to input digit between -100 and 100. The value can be defined from the user. It should not be 'increased or decreased. It is just defined by the user
  - Description. User should be able to select text in it. Should make https:// links a real links
  - Button to add a comment (with comments). Comments can be edited.
  - Other entry metadata.

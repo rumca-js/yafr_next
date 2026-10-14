@@ -34,31 +34,37 @@ class TestApiEntries(unittest.TestCase):
         close_session()
 
     def test_api_vote_entry(self):
-        """POST /api/entries/<id>/vote records rating vote."""
-        # Upvote
+        """POST /api/entries/<id>/vote sets rating vote to a direct number."""
+        # Set vote to 70 directly
         res = self.client.post(
             f"/api/entries/{self.entry.id}/vote",
-            json={"direction": "up"},
+            json={"vote": 70},
         )
         self.assertEqual(res.status_code, 200)
         data = res.get_json()["data"]
-        self.assertEqual(data["page_rating_votes"], 1)
+        self.assertEqual(data["page_rating_votes"], 70)
 
-        # Downvote
+        # Set vote to negative number directly (-45)
         res2 = self.client.post(
             f"/api/entries/{self.entry.id}/vote",
-            json={"direction": "down"},
+            json={"vote": -45},
         )
         self.assertEqual(res2.status_code, 200)
-        self.assertEqual(res2.get_json()["data"]["page_rating_votes"], 0)
+        self.assertEqual(res2.get_json()["data"]["page_rating_votes"], -45)
 
-        # Explicit vote
-        res3 = self.client.post(
+        # Missing vote parameter returns 400
+        res_missing = self.client.post(
             f"/api/entries/{self.entry.id}/vote",
-            json={"vote": 75},
+            json={},
         )
-        self.assertEqual(res3.status_code, 200)
-        self.assertEqual(res3.get_json()["data"]["page_rating_votes"], 75)
+        self.assertEqual(res_missing.status_code, 400)
+
+        # Out-of-bounds vote number returns 400
+        res_overflow = self.client.post(
+            f"/api/entries/{self.entry.id}/vote",
+            json={"vote": 150},
+        )
+        self.assertEqual(res_overflow.status_code, 400)
 
     def test_api_toggle_bookmark(self):
         """POST /api/entries/<id>/bookmark toggles bookmark flag."""

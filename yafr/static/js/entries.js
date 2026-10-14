@@ -69,30 +69,40 @@ $(document).ready(function () {
     });
   });
 
-  // 3. Voting (Upvote / Downvote)
-  $(document).on('click', '.btn-vote-up, .btn-vote-down', function (e) {
+  // 3. Set Vote as a Number (-100 to 100)
+  $(document).on('click', '.btn-set-vote', function (e) {
     e.preventDefault();
     e.stopPropagation();
 
     const btn = $(this);
     const entryId = btn.data('id');
-    const direction = btn.hasClass('btn-vote-up') ? 'up' : 'down';
-    const card = $('#entry-card-' + entryId);
     const scoreBadge = $('.score-badge[data-id="' + entryId + '"]');
+    const currentVote = btn.data('current') !== undefined ? btn.data('current') : (scoreBadge.text().trim() || 0);
 
     if (!entryId) return;
 
+    const userInput = prompt('Set vote rating (-100 to 100):', currentVote);
+    if (userInput === null) return; // User cancelled
+
+    const targetVote = parseInt(userInput.trim(), 10);
+    if (isNaN(targetVote) || targetVote < -100 || targetVote > 100) {
+      alert('Please enter a valid integer between -100 and 100.');
+      return;
+    }
+
+    const card = $('#entry-card-' + entryId);
     btn.prop('disabled', true);
 
     $.ajax({
       url: '/api/entries/' + entryId + '/vote',
       type: 'POST',
       contentType: 'application/json',
-      data: JSON.stringify({ direction: direction }),
+      data: JSON.stringify({ vote: targetVote }),
       success: function (res) {
         if (res.success && res.data) {
           const newVotes = res.data.page_rating_votes;
           scoreBadge.text(newVotes);
+          btn.data('current', newVotes);
 
           if (newVotes !== 0) {
             card.addClass('entry-voted');
@@ -102,7 +112,7 @@ $(document).ready(function () {
         }
       },
       error: function (xhr) {
-        console.error('Vote failed:', xhr.responseText);
+        alert('Failed to set vote: ' + (xhr.responseJSON?.error || xhr.statusText));
       },
       complete: function () {
         btn.prop('disabled', false);
