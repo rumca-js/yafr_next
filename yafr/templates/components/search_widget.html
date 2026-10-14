@@ -87,24 +87,26 @@
         </div>
       </div>
 
-      <!-- Filter Dropdown & Actions -->
+      <!-- Order / Filter Combobox & Actions -->
       <div class="col-12 col-md-6 col-lg-5 d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
-        <div class="dropdown">
-          <button class="btn btn-outline-secondary btn-sm dropdown-toggle rounded-pill" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-funnel me-1"></i>
+        <input type="hidden" name="display" value="{{ display_type }}">
+        <div class="d-flex align-items-center gap-1">
+          <label for="compact-filter-select" class="text-secondary small d-none d-sm-inline">
+            <i class="bi bi-sort-down me-1"></i>Order:
+          </label>
+          <select 
+            name="filter" 
+            id="compact-filter-select" 
+            class="form-select form-select-sm w-auto shadow-sm rounded-pill border-secondary-subtle px-3 py-1 text-secondary-emphasis"
+            onchange="this.form.submit()"
+            aria-label="Order and search filter"
+          >
             {% for f in filters %}
-              {% if f.id == active_filter %}{{ f.name }}{% endif %}
+              <option value="{{ f.id }}" {% if f.id == active_filter %}selected{% endif %}>
+                {{ f.name }}
+              </option>
             {% endfor %}
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end shadow">
-            {% for f in filters %}
-              <li>
-                <a class="dropdown-item {% if f.id == active_filter %}active{% endif %}" href="{{ url_for('entries.search_view', q=query, filter=f.id) }}">
-                  {{ f.name }}
-                </a>
-              </li>
-            {% endfor %}
-          </ul>
+          </select>
         </div>
 
         <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" title="Add new entry">

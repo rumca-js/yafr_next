@@ -55,6 +55,7 @@ class TestEntryRoutes(unittest.TestCase):
         html = response.get_data(as_text=True)
         self.assertIn("main-search-input", html)
         self.assertIn("Search entries", html)
+        self.assertIn("filter-select", html)
 
     def test_search_view_no_input_returns_all_data(self):
         """GET /?q= (search with no input text) returns all entries."""
