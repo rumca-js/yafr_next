@@ -28,7 +28,11 @@
         <!-- Results Header / Metadata Bar -->
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
           <div class="text-secondary small">
-            Found <strong>{{ "{:,}".format(total_results) }}</strong> results for <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ query }}</span>
+            {% if query %}
+              Found <strong>{{ "{:,}".format(total_results) }}</strong> results for <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ query }}</span>
+            {% else %}
+              Showing all <strong>{{ "{:,}".format(total_results) }}</strong> entries
+            {% endif %}
             {% if total_pages > 1 %}
               <span class="ms-2 text-muted">&middot; Page {{ page }} of {{ total_pages }}</span>
             {% endif %}

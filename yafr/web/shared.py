@@ -20,6 +20,49 @@ DISPLAY_TYPE_SEARCH_ENGINE = "search-engine"
 DISPLAY_TYPE_CONTENT_CENTRIC = "content-centric"
 DISPLAY_TYPE_LINKS_ONLY = "links-only"
 
+# Display Presets
+CONFIGURATION_SEARCH_ENGINE = "Search Engine"
+CONFIGURATION_GALLERY = "Gallery"
+CONFIGURATION_NEWS = "News"
+
+DISPLAY_TYPES = [
+    {
+        "id": DISPLAY_TYPE_GALLERY,
+        "name": "Gallery",
+        "icon": "bi-grid-3x3-gap",
+        "description": "Card grid with prominent thumbnails (YouTube / TikTok style)",
+    },
+    {
+        "id": DISPLAY_TYPE_STANDARD,
+        "name": "Standard",
+        "icon": "bi-view-list",
+        "description": "Feed reader list with side thumbnails (RSS reader style)",
+    },
+    {
+        "id": DISPLAY_TYPE_SEARCH_ENGINE,
+        "name": "Search Engine",
+        "icon": "bi-search",
+        "description": "Emphasis on titles and URLs (Google / DuckDuckGo style)",
+    },
+    {
+        "id": DISPLAY_TYPE_CONTENT_CENTRIC,
+        "name": "Content Centric",
+        "icon": "bi-chat-square-text",
+        "description": "Expanded descriptions and metadata (Reddit style)",
+    },
+    {
+        "id": DISPLAY_TYPE_LINKS_ONLY,
+        "name": "Links Only",
+        "icon": "bi-table",
+        "description": "High-density tabular list of links",
+    },
+]
+
+DISPLAY_STYLES = [
+    {"id": DISPLAY_STYLE_DARK, "name": "Dark Theme", "icon": "bi-moon-stars"},
+    {"id": DISPLAY_STYLE_LIGHT, "name": "Light Theme", "icon": "bi-sun"},
+]
+
 # Predefined Filters for Entries
 ENTRY_FILTERS = [
     {"id": "date_published", "name": "by Date published", "default": True},

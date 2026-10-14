@@ -58,22 +58,130 @@ class ConfigRepository(BaseRepository[ConfigurationEntry]):
 
         return config
 
+    def to_dict(self) -> dict:
+        """
+        Serializes active ConfigurationEntry attributes into a dictionary.
+
+        :return: Dict representation of configuration attributes
+        """
+        config = self.get_config()
+        return {
+            col.name: getattr(config, col.name)
+            for col in ConfigurationEntry.__table__.columns
+        }
+
     def update_config(self, **kwargs) -> ConfigurationEntry:
         """
-        Updates fields on the active ConfigurationEntry.
+        Updates fields on the active ConfigurationEntry with automatic type coercion.
 
         :param kwargs: Key-value attributes to update
         :return: Updated ConfigurationEntry instance
         """
         config = self.get_config()
+        columns = ConfigurationEntry.__table__.columns
         for key, value in kwargs.items():
-            if hasattr(config, key):
+            if key in columns:
+                col_type = str(columns[key].type)
+                if "BOOLEAN" in col_type:
+                    if isinstance(value, str):
+                        converted_val = value.lower() in ("true", "1", "yes", "on", "t")
+                    else:
+                        converted_val = bool(value)
+                elif "INTEGER" in col_type:
+                    try:
+                        converted_val = int(value)
+                    except (ValueError, TypeError):
+                        continue
+                elif "FLOAT" in col_type:
+                    try:
+                        converted_val = float(value)
+                    except (ValueError, TypeError):
+                        continue
+                else:
+                    converted_val = str(value) if value is not None else ""
+                setattr(config, key, converted_val)
+            elif hasattr(config, key):
                 setattr(config, key, value)
             else:
                 logger.warning("ConfigurationEntry has no attribute '%s'", key)
 
         self.session.commit()
         return config
+
+    def apply_preset(self, preset_name: str) -> ConfigurationEntry:
+        """
+        Applies a predefined UI display preset (Search Engine, Gallery, News).
+
+        :param preset_name: 'search-engine', 'gallery', or 'news'
+        :return: Updated ConfigurationEntry instance
+        """
+        preset_key = preset_name.lower().replace(" ", "-").replace("_", "-")
+        if preset_key in ("search-engine", "search"):
+            return self.update_config(
+                display_type="search-engine",
+                show_icons=False,
+                thumbnails_as_icons=False,
+                small_icons=True,
+                click_behavior_modal_window=False,
+            )
+        elif preset_key in ("gallery",):
+            return self.update_config(
+                display_type="gallery",
+                show_icons=True,
+                thumbnails_as_icons=True,
+                small_icons=False,
+                click_behavior_modal_window=True,
+            )
+        elif preset_key in ("news", "content-centric"):
+            return self.update_config(
+                display_type="content-centric",
+                show_icons=True,
+                thumbnails_as_icons=True,
+                small_icons=True,
+                click_behavior_modal_window=False,
+            )
+        else:
+            raise ValueError(f"Unknown preset name: '{preset_name}'")
+
+    def reset_defaults(self) -> ConfigurationEntry:
+        """
+        Resets all configurable options to application defaults.
+
+        :return: Reset ConfigurationEntry instance
+        """
+        defaults = {
+            "instance_title": "YAFR",
+            "instance_description": "Yet Another Feed Reader",
+            "display_style": "style-dark",
+            "display_type": "gallery",
+            "show_icons": True,
+            "thumbnails_as_icons": True,
+            "small_icons": False,
+            "local_icons": False,
+            "highlight_bookmarks": True,
+            "click_behavior_modal_window": True,
+            "entries_visit_alpha": 0.6,
+            "entries_dead_alpha": 0.4,
+            "max_number_of_user_search": 300,
+            "max_user_entry_visit_history": 5000,
+            "links_per_page": 25,
+            "sources_per_page": 25,
+            "vote_min": -100,
+            "vote_max": 100,
+            "track_user_searches": True,
+            "track_user_navigation": True,
+            "prefer_https_links": True,
+            "prefer_non_www_links": False,
+            "accept_dead_links": False,
+            "accept_domain_links": True,
+            "accept_ip_links": True,
+            "accept_onion_links": False,
+            "accept_same_hashes": False,
+            "sources_refresh_period": 3600,
+            "enable_social_data": True,
+            "debug_mode": False,
+        }
+        return self.update_config(**defaults)
 
     def get_display_style(self) -> str:
         """

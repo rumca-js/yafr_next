@@ -1,0 +1,561 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} - Configuration{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+              <i class="bi {% if category == 'success' %}bi-check-circle{% else %}bi-exclamation-triangle{% endif %} me-2"></i>
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Toast for AJAX Actions -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+    <div id="config-toast" class="toast align-items-center text-white bg-success border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body" id="config-toast-body">
+          Configuration updated successfully.
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+      <!-- Header -->
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-gear text-primary fs-3"></i>
+          <div>
+            <h4 class="mb-0 fw-bold">Configuration</h4>
+            <div class="text-muted small">Application display settings, quotas, and crawling preferences stored in SQLite</div>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#resetDefaultsModal">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Defaults
+          </button>
+          <button type="submit" form="config-form" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+            <i class="bi bi-check2-circle me-1"></i>Save Changes
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick UI Presets Section -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-magic text-warning fs-5"></i>
+            <h5 class="card-title mb-0 fw-semibold">Quick UI Presets</h5>
+          </div>
+          <p class="text-muted small mb-3">Select a preset to immediately apply recommended layout and display configurations:</p>
+          
+          <div class="row g-3">
+            {% for preset in presets %}
+              <div class="col-12 col-md-4">
+                <div class="card h-100 border {% if config.display_type == preset.id or (preset.id == 'news' and config.display_type == 'content-centric') %}border-primary bg-primary-subtle bg-opacity-10{% endif %} preset-card shadow-sm p-3 d-flex flex-column justify-content-between">
+                  <div>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <span class="fw-bold d-flex align-items-center gap-2">
+                        <i class="bi {{ preset.icon }} text-primary fs-5"></i>
+                        {{ preset.name }}
+                      </span>
+                      {% if config.display_type == preset.id or (preset.id == 'news' and config.display_type == 'content-centric') %}
+                        <span class="badge bg-primary rounded-pill">Active</span>
+                      {% endif %}
+                    </div>
+                    <p class="text-muted small mb-3">{{ preset.description }}</p>
+                  </div>
+                  <button type="button" class="btn btn-outline-primary btn-sm rounded-pill w-100 btn-apply-preset" data-preset="{{ preset.id }}">
+                    <i class="bi bi-lightning-charge me-1"></i>Apply {{ preset.name }}
+                  </button>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Configuration Form -->
+      <form id="config-form" method="POST" action="{{ url_for('config.update_configuration') }}">
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills mb-4 gap-2" id="configTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active rounded-pill px-3" id="tab-appearance-btn" data-bs-toggle="tab" data-bs-target="#tab-appearance" type="button" role="tab" aria-selected="true">
+              <i class="bi bi-palette me-1"></i>Appearance & Theme
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill px-3" id="tab-quotas-btn" data-bs-toggle="tab" data-bs-target="#tab-quotas" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-speedometer2 me-1"></i>Quotas & Pagination
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill px-3" id="tab-voting-btn" data-bs-toggle="tab" data-bs-target="#tab-voting" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-star me-1"></i>Voting & History
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill px-3" id="tab-crawling-btn" data-bs-toggle="tab" data-bs-target="#tab-crawling" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-shield-check me-1"></i>Links & Sources Rules
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill px-3" id="tab-general-btn" data-bs-toggle="tab" data-bs-target="#tab-general" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-sliders me-1"></i>General & Instance
+            </button>
+          </li>
+        </ul>
+
+        <!-- Tab Contents -->
+        <div class="tab-content" id="configTabContent">
+
+          <!-- TAB 1: Appearance & Theme -->
+          <div class="tab-pane fade show active" id="tab-appearance" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body p-4">
+                
+                <!-- Display Theme (Light / Dark) -->
+                <div class="mb-4">
+                  <label class="form-label fw-bold">Active Theme Style</label>
+                  <p class="text-muted small">Controls Bootstrap theme colors and contrast across all pages.</p>
+                  <div class="row g-3">
+                    {% for style in display_styles %}
+                      <div class="col-12 col-sm-6">
+                        <div class="form-check card p-3 border shadow-sm h-100 d-flex flex-row align-items-center gap-3">
+                          <input class="form-check-input ms-0 mt-0" type="radio" name="display_style" id="style_{{ style.id }}" value="{{ style.id }}" {% if config.display_style == style.id %}checked{% endif %}>
+                          <label class="form-check-label fw-semibold cursor-pointer mb-0 d-flex align-items-center gap-2" for="style_{{ style.id }}">
+                            <i class="bi {{ style.icon }} fs-5 text-primary"></i>
+                            {{ style.name }}
+                          </label>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Display Type (Card Layout) -->
+                <div class="mb-4">
+                  <label class="form-label fw-bold">Default Card Layout Type</label>
+                  <p class="text-muted small">Default layout for search results and feed entry browsing.</p>
+                  <div class="row g-3">
+                    {% for dt in display_types %}
+                      <div class="col-12 col-md-6 col-lg-4">
+                        <div class="form-check card p-3 border shadow-sm h-100 d-flex flex-row align-items-start gap-2">
+                          <input class="form-check-input ms-0 mt-1" type="radio" name="display_type" id="dt_{{ dt.id }}" value="{{ dt.id }}" {% if config.display_type == dt.id %}checked{% endif %}>
+                          <label class="form-check-label cursor-pointer mb-0" for="dt_{{ dt.id }}">
+                            <div class="fw-semibold d-flex align-items-center gap-2">
+                              <i class="bi {{ dt.icon }} text-primary"></i>
+                              {{ dt.name }}
+                            </div>
+                            <div class="text-muted small mt-1">{{ dt.description }}</div>
+                          </label>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Alphas & Transparencies -->
+                <div class="mb-4">
+                  <label class="form-label fw-bold">Alpha Transparencies</label>
+                  <p class="text-muted small">Control opacity attenuation applied to visited and dead entries.</p>
+                  
+                  <div class="row g-4">
+                    <!-- Visited Alpha Slider -->
+                    <div class="col-12 col-md-6">
+                      <div class="card bg-body-tertiary border p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                          <label for="entries_visit_alpha" class="form-label fw-semibold mb-0">Visited Entries Alpha</label>
+                          <span class="badge bg-primary rounded-pill font-monospace" id="visit_alpha_badge">{{ "{:.2f}".format(config.entries_visit_alpha if config.entries_visit_alpha is not none else 0.60) }}</span>
+                        </div>
+                        <input type="range" class="form-range" min="0.10" max="1.00" step="0.05" id="entries_visit_alpha" name="entries_visit_alpha" value="{{ config.entries_visit_alpha if config.entries_visit_alpha is not none else 0.60 }}">
+                        <div class="d-flex justify-content-between small text-muted">
+                          <span>0.10 (faint)</span>
+                          <span id="visit-preview-text" style="opacity: {{ config.entries_visit_alpha if config.entries_visit_alpha is not none else 0.60 }};">Preview: Sample Visited Entry</span>
+                          <span>1.00 (opaque)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Dead Alpha Slider -->
+                    <div class="col-12 col-md-6">
+                      <div class="card bg-body-tertiary border p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                          <label for="entries_dead_alpha" class="form-label fw-semibold mb-0">Dead Entries Alpha</label>
+                          <span class="badge bg-danger rounded-pill font-monospace" id="dead_alpha_badge">{{ "{:.2f}".format(config.entries_dead_alpha if config.entries_dead_alpha is not none else 0.40) }}</span>
+                        </div>
+                        <input type="range" class="form-range" min="0.10" max="1.00" step="0.05" id="entries_dead_alpha" name="entries_dead_alpha" value="{{ config.entries_dead_alpha if config.entries_dead_alpha is not none else 0.40 }}">
+                        <div class="d-flex justify-content-between small text-muted">
+                          <span>0.10 (faint)</span>
+                          <span id="dead-preview-text" style="opacity: {{ config.entries_dead_alpha if config.entries_dead_alpha is not none else 0.40 }};">Preview: Sample Dead Entry</span>
+                          <span>1.00 (opaque)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Visual Toggles -->
+                <div class="mb-2">
+                  <label class="form-label fw-bold">Visual Toggles & Media Controls</label>
+                  <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                      <div class="form-check form-switch card p-3 border shadow-sm">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="show_icons" name="show_icons" {% if config.show_icons %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="show_icons">
+                          Show Icons & Thumbnails
+                          <div class="text-muted small fw-normal">Display favicon and preview thumbnails on entry items</div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                      <div class="form-check form-switch card p-3 border shadow-sm">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="thumbnails_as_icons" name="thumbnails_as_icons" {% if config.thumbnails_as_icons %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="thumbnails_as_icons">
+                          Thumbnails As Icons Fallback
+                          <div class="text-muted small fw-normal">Fall back to source favicon when entry thumbnail is missing</div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                      <div class="form-check form-switch card p-3 border shadow-sm">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="small_icons" name="small_icons" {% if config.small_icons %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="small_icons">
+                          Small Icons
+                          <div class="text-muted small fw-normal">Render compact, reduced-dimension thumbnails</div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                      <div class="form-check form-switch card p-3 border shadow-sm">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="local_icons" name="local_icons" {% if config.local_icons %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="local_icons">
+                          Local Icons Only
+                          <div class="text-muted small fw-normal">Do not load remote icons to enforce maximum offline privacy</div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                      <div class="form-check form-switch card p-3 border shadow-sm">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="highlight_bookmarks" name="highlight_bookmarks" {% if config.highlight_bookmarks %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="highlight_bookmarks">
+                          Highlight Bookmarks
+                          <div class="text-muted small fw-normal">Prevent alpha dimming on bookmarked or voted entries</div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                      <div class="form-check form-switch card p-3 border shadow-sm">
+                        <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="click_behavior_modal_window" name="click_behavior_modal_window" {% if config.click_behavior_modal_window %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="click_behavior_modal_window">
+                          Modal Window Media Preview
+                          <div class="text-muted small fw-normal">Open YouTube videos and URL previews in modal popup</div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: Quotas & Pagination -->
+          <div class="tab-pane fade" id="tab-quotas" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Pagination Limits & Storage Quotas</h5>
+                <p class="text-muted small mb-4">Configure page limits and FIFO table growth caps to ensure smooth performance on large SQLite databases.</p>
+
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <label for="links_per_page" class="form-label fw-semibold">Links Per Page</label>
+                    <input type="number" class="form-control shadow-sm" id="links_per_page" name="links_per_page" min="5" max="500" value="{{ config.links_per_page or 25 }}" required>
+                    <div class="form-text">Number of entries rendered per search page (default: 25).</div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label for="sources_per_page" class="form-label fw-semibold">Sources Per Page</label>
+                    <input type="number" class="form-control shadow-sm" id="sources_per_page" name="sources_per_page" min="5" max="500" value="{{ config.sources_per_page or 25 }}" required>
+                    <div class="form-text">Number of RSS/Email sources shown per page (default: 25).</div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label for="max_number_of_user_search" class="form-label fw-semibold">Search History Storage Limit</label>
+                    <input type="number" class="form-control shadow-sm" id="max_number_of_user_search" name="max_number_of_user_search" min="10" max="5000" value="{{ config.max_number_of_user_search or 300 }}" required>
+                    <div class="form-text">FIFO storage cap for searchhistory table (default: 300).</div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label for="max_user_entry_visit_history" class="form-label fw-semibold">Visited Entries History Limit</label>
+                    <input type="number" class="form-control shadow-sm" id="max_user_entry_visit_history" name="max_user_entry_visit_history" min="100" max="50000" value="{{ config.max_user_entry_visit_history or 5000 }}" required>
+                    <div class="form-text">FIFO storage cap for entryvisithistory table (default: 5,000).</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: Voting & History -->
+          <div class="tab-pane fade" id="tab-voting" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Voting Range & History Tracking</h5>
+                <p class="text-muted small mb-4">Adjust user rating scale and control tracking behavior.</p>
+
+                <div class="row g-3 mb-4">
+                  <div class="col-12 col-md-6">
+                    <label for="vote_min" class="form-label fw-semibold">Minimum Vote Value</label>
+                    <input type="number" class="form-control shadow-sm" id="vote_min" name="vote_min" value="{{ config.vote_min if config.vote_min is not none else -100 }}" required>
+                    <div class="form-text">Minimum rating score a user can assign (default: -100).</div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label for="vote_max" class="form-label fw-semibold">Maximum Vote Value</label>
+                    <input type="number" class="form-control shadow-sm" id="vote_max" name="vote_max" value="{{ config.vote_max if config.vote_max is not none else 100 }}" required>
+                    <div class="form-text">Maximum rating score a user can assign (default: 100).</div>
+                  </div>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="track_user_searches" name="track_user_searches" {% if config.track_user_searches %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="track_user_searches">
+                        Track User Searches
+                        <div class="text-muted small fw-normal">Saves entered queries in SearchHistory table for autocomplete suggestions</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="track_user_navigation" name="track_user_navigation" {% if config.track_user_navigation %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="track_user_navigation">
+                        Track Entry Navigation Transitions
+                        <div class="text-muted small fw-normal">Records links traversed between entries in UserEntryTransitionHistory</div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: Links & Sources Rules -->
+          <div class="tab-pane fade" id="tab-crawling" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Links & Sources Ingestion Rules</h5>
+                <p class="text-muted small mb-4">Policies used when parsing feeds, fetching URLs, or executing background jobs.</p>
+
+                <div class="row g-3 mb-4">
+                  <div class="col-12 col-md-6">
+                    <label for="sources_refresh_period" class="form-label fw-semibold">Sources Refresh Period (seconds)</label>
+                    <input type="number" class="form-control shadow-sm" id="sources_refresh_period" name="sources_refresh_period" min="60" max="864000" value="{{ config.sources_refresh_period or 3600 }}" required>
+                    <div class="form-text">Minimum duration before an RSS source is marked outdated for auto-refresh (default: 3600s = 1 hour).</div>
+                  </div>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="prefer_https_links" name="prefer_https_links" {% if config.prefer_https_links %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="prefer_https_links">
+                        Prefer HTTPS Links
+                        <div class="text-muted small fw-normal">Upgrades HTTP schemes to HTTPS automatically where available</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="prefer_non_www_links" name="prefer_non_www_links" {% if config.prefer_non_www_links %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="prefer_non_www_links">
+                        Strip 'www.' Prefix
+                        <div class="text-muted small fw-normal">Normalizes domain URLs by stripping leading 'www.'</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="accept_domain_links" name="accept_domain_links" {% if config.accept_domain_links %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="accept_domain_links">
+                        Accept Domain Links
+                        <div class="text-muted small fw-normal">Accept standard web domain URLs (e.g., example.com)</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="accept_ip_links" name="accept_ip_links" {% if config.accept_ip_links %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="accept_ip_links">
+                        Accept IP Links
+                        <div class="text-muted small fw-normal">Accept raw IPv4 and IPv6 URLs (e.g., 192.168.1.1)</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="accept_onion_links" name="accept_onion_links" {% if config.accept_onion_links %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="accept_onion_links">
+                        Accept Tor Onion Links
+                        <div class="text-muted small fw-normal">Allow darknet .onion domain addresses to be saved</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="accept_dead_links" name="accept_dead_links" {% if config.accept_dead_links %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="accept_dead_links">
+                        Accept Dead Links
+                        <div class="text-muted small fw-normal">Keep links with HTTP error status codes (4xx / 5xx)</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="accept_same_hashes" name="accept_same_hashes" {% if config.accept_same_hashes %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="accept_same_hashes">
+                        Accept Duplicate Hashes
+                        <div class="text-muted small fw-normal">Allow duplicate entries sharing identical content hashes</div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="enable_social_data" name="enable_social_data" {% if config.enable_social_data %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="enable_social_data">
+                        Fetch Social Metrics
+                        <div class="text-muted small fw-normal">Attempt to fetch view counts, stars, and votes from sources</div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 5: General & Instance -->
+          <div class="tab-pane fade" id="tab-general" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Instance Identity & System Settings</h5>
+
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <label for="instance_title" class="form-label fw-semibold">Instance Name</label>
+                    <input type="text" class="form-control shadow-sm" id="instance_title" name="instance_title" value="{{ config.instance_title or 'YAFR' }}" required>
+                    <div class="form-text">Display name shown in the navbar brand.</div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label for="instance_description" class="form-label fw-semibold">Instance Description</label>
+                    <input type="text" class="form-control shadow-sm" id="instance_description" name="instance_description" value="{{ config.instance_description or 'Yet Another Feed Reader' }}">
+                    <div class="form-text">Short summary or subtitle of this reader deployment.</div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <div class="form-check form-switch card p-3 border shadow-sm mt-3">
+                      <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="debug_mode" name="debug_mode" {% if config.debug_mode %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="debug_mode">
+                        Debug Mode
+                        <div class="text-muted small fw-normal">Enables detailed diagnostics in application logs and API responses</div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sticky Action Bar -->
+        <div class="card border-0 shadow-sm sticky-bottom mt-4 p-3 bg-body border-top">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted small">Changes will take effect immediately upon saving.</span>
+            <div class="d-flex gap-2">
+              <a href="{{ url_for('entries.search_view') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                Cancel
+              </a>
+              <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 shadow-sm" id="save-config-btn">
+                <i class="bi bi-save me-1"></i>Save Configuration
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Reset Defaults Confirmation Modal -->
+<div class="modal fade" id="resetDefaultsModal" tabindex="-1" aria-labelledby="resetDefaultsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title fw-bold text-danger d-flex align-items-center gap-2" id="resetDefaultsModalLabel">
+          <i class="bi bi-exclamation-triangle"></i>Reset Configuration to Defaults?
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p>This action will revert all UI styles, transparency alphas, quotas, and crawling preferences back to factory defaults.</p>
+        <p class="text-muted small mb-0">Your saved bookmarks, entries, sources, and database content will NOT be affected.</p>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm rounded-pill px-3" id="confirm-reset-btn">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Confirm Reset
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/config.js') }}"></script>
+{% endblock %}

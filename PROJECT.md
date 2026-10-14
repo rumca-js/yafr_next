@@ -14,12 +14,18 @@ A database is a searchable collection of entries.
  - It is a HTML self-hosted app
  - do not run tests before starting work on a feature. Run it after feature is implemented
 
+This project provides Makefile that provides rules to start app, and start worker.
+Provide docker script?
+I have many instances of app in mind. Running app on a different port should be relatively easy.
+It should listen to connections from LAN
+
 # Files
 Files describing project:
  - ARCHITECTURE.md
  - FILES.md
  - URLS.md
  - BUGS.md - if any bug is define should be solved
+ - TODO.md - identified what is left to do
 
 # Data
  - webtoolkit for network communication https://github.com/rumca-js/webtoolkit
@@ -74,7 +80,7 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - SourceParseEditScreen - Edits source
  - CredentialsScreen - displays credentials information
  - JobsView - view showing jobs
- - LogsView - view showing AppLogging entries
+ - LogsView - view showing AppLogging entries. There should be a limit to number of logs. Maybe up to 2000?
  - EntryRulesScreen - Displays and configures entry rules.
  - AboutScreen - Shows information about the application.
  - UrlPreview - shows preview for link. Link can be passed to it from other places of software

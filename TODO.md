@@ -7,4 +7,6 @@
 - [ ] **Remote Database Download**: Provide functionality to download and replace the active SQLite database from a remote URL.
 - [ ] **UI Polish & Bug Fixes**: Address initial search filter layout and clarify worker/online status indicators (from `BUGS.md`).
  - implement entry builder, which checks if entry can be inserted (checks rules?)
+ - provide docker compose script and Dockerfile
  - On hold - introduce system operations table
+ - if database file is replaced, how thread should be restarted?
