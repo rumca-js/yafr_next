@@ -5,7 +5,7 @@
 > YAFR requires **zero external programs, system services, or message brokers** to be installed on the operating system.
 > - **NO RabbitMQ, Redis, Kafka, or Celery**.
 > - **NO system daemons, background services, or Docker containers**.
-> - The application runs as a **single, self-contained Python process**.
+> - The application runs as a web server, and a worker
 > - The task queue is backed entirely by the local SQLite database file (`backgroundjob` table).
 > - Asynchronous execution is handled strictly via Python standard library in-process daemon threads (`threading.Thread`).
 > - The user only runs `poetry run python run.py` — nothing else needs to be installed or configured on the system.
@@ -118,7 +118,7 @@ All libraries are pure Python packages installed within the local Python virtual
 | **requests** | `^2.31` | Low-level HTTP Client | Underlying engine for network transfers, header simulation, timeouts, and redirects. |
 | **beautifulsoup4** | `^4.12` | HTML parsing & DOM extraction | Used for metadata scraping, favicon extraction, OpenGraph tags, and XPath fallback parsing. |
 | **yt-dlp** | `^2026.8.19` | Video & Rich Media Extraction | Metadata extraction for video feeds (YouTube, Odysee, etc.), high-res thumbnail resolution, and embed validation. |
-| **imaplib & email** | Standard Library | Email Source Fetching | Built-in Python standard library modules for IMAP connection and MIME parsing. |
+| **webtoolki** | Standard Library | Email Source Fetching | contains utils for reading emails. |
 
 ### 2.4 Asynchronous Worker & Task Queue (Zero External Programs)
 
