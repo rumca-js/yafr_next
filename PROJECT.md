@@ -69,6 +69,22 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - BackgroundJob - backgroundjob
  - ConfigurationEntry - configurationentry
 
+# UI
+ - validate input links.
+ - link should not contain white spaces at start/end. Trim them on input
+ - Propose clickable suggestions that replaces input
+ - webtoolkit.UrlLocation().get_clean() returns cleaned version of link (proposition to the user)
+ - link should not have trailing / character (propose version without it)
+ - if it is not web link webtoolkit.UrlLocation().is_web_link() display error
+ - if ConfigurationEntry does not allow specific type of of link display error, but allow such links to be inserte by
+  the user
+ - the system should not add link that is not accepted by ConfigurationEntry.accept* fields (accept_domain_link, accept_non_domain_links, etc)
+  - should apply for entry inserts or source inserts
+  - each view should provide title. Entry detail should display title, source detail should display title. Lists should display list title, with search words (if there are any)
+
+ - Any input should be limited. Do not allow infinite amount of inputs. For example entries can be inserted by a textfield, but only allow 200 to ba added by one field at a time
+ - propose link version without www if it has in it
+
 # Views
  - EntriesListView - default 'search' google like view
  - EntryDetailView - view showing only one result (entry), similar to YouTube video preview
@@ -90,6 +106,7 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - ConfigurationView - allows user to change configurationentry properties (display style)
  - ExportView - provides ability to export data. Can export sources into OPML, pure link list, entries from linkdatamodel into lists of ilnks
  - ImportView - provides ability to import data from files: JSON into linkdatamodel, or into sourcedatamodel, OMPL into sourcedatamodel
+ - provide ability to add/edit search views
 
 It should be indicated if there are problems with Sources, or Jobs, if there are errors by some badges or indicators.
 
@@ -128,6 +145,7 @@ It should be indicated if there are problems with Sources, or Jobs, if there are
  - should support selection of multiple entries, and perform actions on them (delete)
  - can support lazy loading (but does not have to) if we had many embedded youtube previews, etc
  - user should be able to change display style, or type from this place, or change if clicking on entry should lead into entry.link, or local preview, or if icons should be shown
+ - user should be able to use batch operations on selected links: delete / bookmark / unbookmark / copy
 
 ### EntryListItem - row in EntryListScreen
 There are several list styles:
@@ -193,6 +211,7 @@ Provides the following actions:
  - update link data
  - reset link data
  - change publication date
+ - copy link to clipboard
 
 The screen displays, where available:
  - Thumbnail, or video playback frame (if thumbnail is available, if icons are enabled in configuration)
@@ -208,6 +227,7 @@ The screen displays, where available:
  - Other entry metadata.
  - Entry transition pane. The pane shows entries that the user previously visited from the current entry. Entry transitions are stored in UserEntryTransitionHistory.
  - back button returning to EntryListScreen should not refresh list, nor should scroll to the top, as it does not modify Entries, or results. It should if read later were changed and EntryList is with read later filter, or if EntryList is with sort by Visits
+ - provide links leading to other places: web archive, schema validation, who is etc.
 
 ## EntryEditScreen
  - Allows adding a new entry or editing an existing entry.
@@ -221,7 +241,7 @@ The screen displays, where available:
  - Selecting source opens SourceDetailScreen.
  - Provides search widget, similar to EntryListScreen
  - Similarly to EntryListScreen should contain "Search" button with a button to apply filter (order by title, or fetch time)
- - Filters should be by Url, Title, Fetch time. By default by Url filter should be applied. A filter always need to be applied
+ - Filters should be by Url, Title, Fetch time, number of errors. By default by Url filter should be applied. A filter always need to be applied
  - Probably it would have to be a different search widget implementation from EntryListScreen. These can share same base class though
  - Source fetch means that body of page is fetched, should be RSS, entries are read from it, and inserted into linkdatamodel table.
  - If possible fetch/refresh button should spin if sources are being refreshed
