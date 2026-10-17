@@ -341,7 +341,8 @@ The screen displays, where available:
 # Jobs
  - There should be a background task. It should handle processing of jobs.
  - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
- - JOB_LINK_UPDATE_DATA = "link-update-data": updates link title, description, and metadata.
+ - JOB_LINK_UPDATE_DATA = "link-update-data": updates properties from BaseUrl/RemoteUrl: link title, description, thumbnail, date_published, response status_code, author, album, language, etc. Only updates when url provides valid title, description etc. Adds a job to JOB_LINK_DOWNLOAD_SOCIAL. If link is not valid it should set date_dead_since. If it is valid, should clear it. If link is not acceptable using entry rules, it is removed
+ - JOB_LINK_DOWNLOAD_SOCIAL - downloads social meta data (from url.get_social_properties)
  - When links are added by the user, this job is added to the background queue.
  - Worker thread processes this job by obtaining Url like in webtools_service.py (either BaseUrl or RemoteUrl).
  - Fetches BaseUrl.get_title(), BaseUrl.get_description() and updates entry(link) with these properties.
