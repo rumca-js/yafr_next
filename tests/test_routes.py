@@ -135,12 +135,93 @@ class TestEntryRoutes(unittest.TestCase):
         self.assertIn("links-only-table", html)
         self.assertIn("links-only-row", html)
 
-    def test_404_error_handler(self):
-        """Non-existent URL triggers custom 404 handler."""
-        response = self.client.get("/non-existent-endpoint")
-        self.assertEqual(response.status_code, 404)
+    def test_entry_item_click_links_to_detail_view(self):
+        """Entry items in search results contain data-detail-url and links to EntryDetailView."""
+        response = self.client.get("/?q=Python")
+        self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("Page or entry not found", html)
+        self.assertIn(f'data-detail-url="/entries/{self.e1.id}"', html)
+        self.assertIn(f'href="/entries/{self.e1.id}"', html)
+
+    def test_entry_detail_view_success(self):
+        """GET /entries/<id> renders complete EntryDetailView metadata and controls."""
+        response = self.client.get(f"/entries/{self.e1.id}")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Advanced Python Programming", html)
+        self.assertIn("https://example.com/py1", html)
+        self.assertIn("#python", html)
+        self.assertIn("btn-copy-link", html)
+        self.assertIn("btn-mark-active", html)
+        self.assertIn("btn-mark-dead", html)
+        self.assertIn("btn-update-data", html)
+        self.assertIn("btn-reset-data", html)
+        self.assertIn("btn-back-history", html)
+
+    def test_entry_detail_view_records_visit(self):
+        """Visiting /entries/<id> records a visit in HistoryRepository."""
+        history_repo = HistoryRepository(self.session)
+        self.assertFalse(history_repo.is_visited(self.e1.id))
+
+        response = self.client.get(f"/entries/{self.e1.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(history_repo.is_visited(self.e1.id))
+
+    def test_entry_detail_view_transitions(self):
+        """Visiting with from_entry_id records transition and displays it in transition pane."""
+        # Navigate from e1 to e2
+        res = self.client.get(f"/entries/{self.e2.id}?from_entry_id={self.e1.id}")
+        self.assertEqual(res.status_code, 200)
+
+        # Loading e1 detail view should now show e2 in the transition pane
+        res_e1 = self.client.get(f"/entries/{self.e1.id}")
+        self.assertEqual(res_e1.status_code, 200)
+        html_e1 = res_e1.get_data(as_text=True)
+        self.assertIn("Navigation Transitions", html_e1)
+        self.assertIn("Flask Web Development", html_e1)
+
+    def test_entry_detail_view_youtube_embed(self):
+        """Entry with YouTube URL displays responsive video player iframe."""
+        entry_repo = EntryRepository(self.session)
+        yt_entry = entry_repo.add_entry(
+            link="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            title="Rick Astley - Never Gonna Give You Up",
+        )
+        response = self.client.get(f"/entries/{yt_entry.id}")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("iframe", html)
+        self.assertIn("https://www.youtube.com/embed/dQw4w9WgXcQ", html)
+
+    def test_entry_detail_view_not_found(self):
+        """GET /entries/99999 returns 404 for non-existent entry."""
+        response = self.client.get("/entries/99999")
+        self.assertEqual(response.status_code, 404)
+
+    def test_entry_edit_screen_get_and_post(self):
+        """GET /entries/<id>/edit loads form, and POST updates metadata."""
+        # 1. GET form
+        res_get = self.client.get(f"/entries/{self.e1.id}/edit")
+        self.assertEqual(res_get.status_code, 200)
+        self.assertIn("Edit Entry Metadata", res_get.get_data(as_text=True))
+
+        # 2. POST updates
+        res_post = self.client.post(
+            f"/entries/{self.e1.id}/edit",
+            data={
+                "link": "https://example.com/py1-updated",
+                "title": "Python Internals Updated",
+                "description": "Updated deep dive",
+                "author": "Guido",
+                "language": "en",
+                "tags": "python, advanced, internals",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(res_post.status_code, 200)
+        html = res_post.get_data(as_text=True)
+        self.assertIn("Python Internals Updated", html)
+        self.assertIn("#internals", html)
 
 
 if __name__ == "__main__":

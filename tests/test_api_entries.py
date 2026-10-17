@@ -142,6 +142,53 @@ class TestApiEntries(unittest.TestCase):
         self.assertIn("youtube gaming", suggestions)
         self.assertNotIn("python tutorial", suggestions)
 
+    def test_api_mark_active_and_dead(self):
+        """POST /api/entries/<id>/mark-active and /mark-dead sets manual status codes."""
+        # Mark dead (400)
+        res_dead = self.client.post(f"/api/entries/{self.entry.id}/mark-dead")
+        self.assertEqual(res_dead.status_code, 200)
+        self.assertEqual(res_dead.get_json()["data"]["manual_status_code"], 400)
+        self.assertEqual(self.repo.get_by_id(self.entry.id).manual_status_code, 400)
+
+        # Mark active (200)
+        res_active = self.client.post(f"/api/entries/{self.entry.id}/mark-active")
+        self.assertEqual(res_active.status_code, 200)
+        self.assertEqual(res_active.get_json()["data"]["manual_status_code"], 200)
+        self.assertEqual(self.repo.get_by_id(self.entry.id).manual_status_code, 200)
+
+    def test_api_update_data_enqueues_job(self):
+        """POST /api/entries/<id>/update-data enqueues background link-update-data job."""
+        res = self.client.post(f"/api/entries/{self.entry.id}/update-data")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()["data"]
+        self.assertEqual(data["entry_id"], self.entry.id)
+        self.assertIn("job_id", data)
+
+    def test_api_reset_data(self):
+        """POST /api/entries/<id>/reset-data clears hashes and status code."""
+        self.entry.contents_hash = b"fake-hash"
+        self.entry.status_code = 200
+        self.session.commit()
+
+        res = self.client.post(f"/api/entries/{self.entry.id}/reset-data")
+        self.assertEqual(res.status_code, 200)
+        refreshed = self.repo.get_by_id(self.entry.id)
+        self.assertIsNone(refreshed.contents_hash)
+        self.assertEqual(refreshed.status_code, 0)
+
+    def test_api_visit_with_transition(self):
+        """POST /api/entries/<id>/visit with from_entry_id records navigation transition."""
+        e2 = self.repo.add_entry(link="https://example.com/target-page", title="Target")
+        res = self.client.post(
+            f"/api/entries/{e2.id}/visit",
+            json={"from_entry_id": self.entry.id},
+        )
+        self.assertEqual(res.status_code, 200)
+        history = HistoryRepository(self.session)
+        transitions = history.get_transitions_from(self.entry.id)
+        self.assertEqual(len(transitions), 1)
+        self.assertEqual(transitions[0].entry_to_id, e2.id)
+
 
 if __name__ == "__main__":
     unittest.main()

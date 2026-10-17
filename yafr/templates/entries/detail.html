@@ -1,0 +1,1119 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {{ entry.title or entry.link }} - {{ app_name }}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4 max-w-1200">
+
+  <!-- Breadcrumb Navigation & Back Button -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item">
+          <a href="{{ url_for('entries.search_view') }}" class="text-decoration-none">
+            <i class="bi bi-search me-1"></i>Entries
+          </a>
+        </li>
+        {% if source %}
+          <li class="breadcrumb-item">
+            <a href="{{ url_for('sources.source_detail', id=source.id) }}" class="text-decoration-none">
+              {{ source.title or source.url }}
+            </a>
+          </li>
+        {% endif %}
+        <li class="breadcrumb-item active text-truncate" style="max-width: 450px;" aria-current="page">
+          {{ entry.title or entry.link }}
+        </li>
+      </ol>
+    </nav>
+
+    <div>
+      <button 
+        type="button" 
+        class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm"
+        id="btn-back-history"
+        onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href='{{ url_for('entries.search_view') }}'; }"
+        title="Return to previous screen without refreshing"
+      >
+        <i class="bi bi-arrow-left me-1"></i>Back to Results
+      </button>
+    </div>
+  </div>
+
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm mb-4" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <!-- Toast for AJAX Actions -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+    <div id="detail-toast" class="toast align-items-center text-white bg-success border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body" id="detail-toast-body">
+          Action completed successfully.
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Rich Media / Video Playback Frame / Thumbnail -->
+  {% if is_youtube and embed_url %}
+    <div class="card mb-4 shadow-sm border overflow-hidden">
+      <div class="ratio ratio-16x9 bg-black">
+        <iframe 
+          src="{{ embed_url }}" 
+          title="{{ entry.title or 'YouTube Video Player' }}" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen
+        ></iframe>
+      </div>
+    </div>
+  {% elif entry.thumbnail and (config.show_icons if config and config.show_icons is not none else true) %}
+    <div class="card mb-4 shadow-sm border p-3 text-center bg-body-tertiary">
+      <img 
+        src="{{ entry.thumbnail }}" 
+        alt="{{ entry.title or 'Thumbnail' }}" 
+        class="img-fluid rounded mx-auto shadow-sm" 
+        style="max-height: 420px; object-fit: contain;"
+        loading="lazy"
+      >
+    </div>
+  {% endif %}
+
+  <!-- 2. Main Entry Header & Controls Card -->
+  <div class="card mb-4 shadow-sm border" id="entry-detail-card" data-entry-id="{{ entry.id }}">
+    <div class="card-body p-4">
+      
+      <!-- Badges Header Bar -->
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <!-- Status Badge -->
+        <span id="detail-status-badge">
+          {% if is_dead %}
+            <span class="badge bg-danger shadow-sm">
+              <i class="bi bi-skull me-1"></i>Dead Link ({{ entry.manual_status_code or entry.status_code or 400 }})
+            </span>
+          {% else %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle shadow-sm">
+              <i class="bi bi-check-circle me-1"></i>Active ({{ entry.manual_status_code or entry.status_code or 200 }})
+            </span>
+          {% endif %}
+        </span>
+
+        <!-- Rating / Votes Badge -->
+        <span class="badge bg-warning-subtle text-warning-emphasis border shadow-sm">
+          <i class="bi bi-star-fill text-warning me-1"></i>Score: 
+          <strong class="score-badge detail-score-badge" data-id="{{ entry.id }}">{{ entry.page_rating_votes or 0 }}</strong>
+        </span>
+
+        <!-- Read Later Badge -->
+        <span id="detail-read-later-badge" class="badge {% if is_read_later %}bg-primary{% else %}bg-secondary-subtle text-secondary border{% endif %} shadow-sm">
+          <i class="bi bi-clock{{ '-fill' if is_read_later else '' }} me-1"></i>{{ 'Read Later' if is_read_later else 'Not in Read Later' }}
+        </span>
+
+        <!-- Bookmark Badge -->
+        <span id="detail-bookmark-badge" class="badge {% if is_bookmarked %}bg-warning text-dark{% else %}bg-secondary-subtle text-secondary border{% endif %} shadow-sm">
+          <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }} me-1"></i>{{ 'Bookmarked' if is_bookmarked else 'Not Bookmarked' }}
+        </span>
+
+        <!-- Language Badge -->
+        {% if entry.language %}
+          <span class="badge bg-dark bg-opacity-75 text-uppercase shadow-sm">
+            <i class="bi bi-translate me-1"></i>{{ entry.language }}
+          </span>
+        {% endif %}
+
+        <!-- Age Warning Badge -->
+        {% if entry.age and entry.age > 0 %}
+          <span class="badge bg-danger shadow-sm" title="Age restricted content">
+            <i class="bi bi-exclamation-octagon me-1"></i>Age {{ entry.age }}+
+          </span>
+        {% endif %}
+
+        <!-- Visits Counter -->
+        <span class="badge bg-body-secondary text-secondary border shadow-sm">
+          <i class="bi bi-eye me-1"></i>{{ entry.page_rating_visits or 0 }} visits
+        </span>
+
+        <!-- Publication Date -->
+        {% if entry.date_published %}
+          <span class="badge bg-body-secondary text-secondary border shadow-sm">
+            <i class="bi bi-calendar3 me-1"></i>Published: {{ entry.date_published.strftime('%b %d, %Y %H:%M') }}
+          </span>
+        {% endif %}
+      </div>
+
+      <!-- Title -->
+      <h1 class="h3 fw-bold mb-3 text-body-emphasis">
+        {{ entry.title or entry.link }}
+      </h1>
+
+      <!-- Link URL and Quick Actions -->
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-4 p-2 bg-body-tertiary rounded border">
+        <i class="bi bi-link-45deg fs-4 text-primary ms-1"></i>
+        <a 
+          href="{{ entry.link }}" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          class="text-truncate fw-semibold text-break text-decoration-none me-auto" 
+          style="max-width: 750px;"
+          title="{{ entry.link }}"
+        >
+          {{ entry.link }}
+          <i class="bi bi-box-arrow-up-right ms-1 small"></i>
+        </a>
+
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <!-- Copy Link to Clipboard -->
+          <button 
+            type="button" 
+            class="btn btn-sm btn-outline-secondary rounded-pill px-3 btn-copy-link" 
+            data-link="{{ entry.link }}"
+            title="Copy URL to clipboard"
+          >
+            <i class="bi bi-clipboard me-1"></i><span class="copy-text">Copy Link</span>
+          </button>
+
+          <!-- External Open -->
+          <a 
+            href="{{ entry.link }}" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            class="btn btn-sm btn-primary rounded-pill px-3"
+            title="Open original website"
+          >
+            <i class="bi bi-box-arrow-up-right me-1"></i>Open Website
+          </a>
+        </div>
+      </div>
+
+      <!-- Primary Action Buttons Row -->
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-4 pb-3 border-bottom">
+        <!-- Read Later Toggle -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-primary rounded-pill px-3 btn-read-later {{ 'active' if is_read_later else '' }}" 
+          data-id="{{ entry.id }}"
+          title="Toggle Read Later"
+        >
+          <i class="bi bi-clock{{ '-fill' if is_read_later else '' }} me-1"></i>
+          <span class="btn-read-later-text">{{ 'Remove from Read Later' if is_read_later else 'Save for Later' }}</span>
+        </button>
+
+        <!-- Bookmark Toggle -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-warning rounded-pill px-3 btn-bookmark" 
+          data-id="{{ entry.id }}"
+          title="Toggle bookmark"
+        >
+          <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }} me-1"></i>
+          <span>{{ 'Bookmarked' if is_bookmarked else 'Bookmark' }}</span>
+        </button>
+
+        <!-- Vote Button -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-secondary rounded-pill px-3 btn-set-vote" 
+          data-id="{{ entry.id }}" 
+          data-current="{{ entry.page_rating_votes or 0 }}"
+          title="Set vote (-100 to 100)"
+        >
+          <i class="bi bi-star me-1 text-warning"></i>
+          Set Vote (<strong class="score-badge" data-id="{{ entry.id }}">{{ entry.page_rating_votes or 0 }}</strong>)
+        </button>
+
+        <!-- Mark Active -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-success rounded-pill px-3 btn-mark-active" 
+          data-id="{{ entry.id }}"
+          title="Mark entry status as active (200)"
+        >
+          <i class="bi bi-check2-circle me-1"></i>Mark Active
+        </button>
+
+        <!-- Mark Dead -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-danger rounded-pill px-3 btn-mark-dead" 
+          data-id="{{ entry.id }}"
+          title="Mark entry status as dead link (400)"
+        >
+          <i class="bi bi-skull me-1"></i>Mark Dead
+        </button>
+
+        <!-- Update Link Data -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-info rounded-pill px-3 btn-update-data" 
+          data-id="{{ entry.id }}"
+          title="Enqueue background refresh of metadata and thumbnail"
+        >
+          <i class="bi bi-arrow-clockwise me-1"></i>Update Data
+        </button>
+
+        <!-- Reset Link Data -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-secondary rounded-pill px-3 btn-reset-data" 
+          data-id="{{ entry.id }}"
+          title="Reset hashes and cached status back to raw state"
+        >
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Data
+        </button>
+
+        <!-- Edit Metadata -->
+        <a 
+          href="{{ url_for('entries.entry_edit_screen', id=entry.id) }}" 
+          class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+          title="Edit title, description, URL, tags, and author"
+        >
+          <i class="bi bi-pencil me-1"></i>Edit
+        </a>
+
+        <!-- Search / URL Preview -->
+        <a 
+          href="{{ url_for('entries.search_view', q='url=' ~ entry.link) }}" 
+          class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+          title="Search entries with this URL"
+        >
+          <i class="bi bi-search me-1"></i>Search URL
+        </a>
+
+        <!-- Delete Entry -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-danger rounded-pill px-3 ms-auto" 
+          data-bs-toggle="modal" 
+          data-bs-target="#deleteEntryModal"
+          title="Delete entry from database"
+        >
+          <i class="bi bi-trash me-1"></i>Delete
+        </button>
+      </div>
+
+      <!-- Description Section -->
+      <div class="mb-4">
+        <h6 class="fw-bold text-secondary text-uppercase small mb-2">Description</h6>
+        <div class="p-3 bg-body rounded border selectable-text" style="user-select: text; -webkit-user-select: text; white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6;">
+          {% if entry.description %}
+            {{ entry.description | urlize(target="_blank", rel="noopener noreferrer") | safe }}
+          {% else %}
+            <span class="text-muted fst-italic">No description available for this entry.</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Tags Section -->
+      <div class="mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="fw-bold text-secondary text-uppercase small mb-0">Tags</h6>
+          <button 
+            type="button" 
+            class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-0 btn-edit-tags" 
+            data-bs-toggle="modal" 
+            data-bs-target="#editTagsModal"
+            title="Edit tags for this entry"
+          >
+            <i class="bi bi-pencil me-1"></i>Edit Tags
+          </button>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center" id="detail-tags-container">
+          {% if tags %}
+            {% for tag in tags %}
+              <a 
+                href="{{ url_for('entries.search_view', q='tag:' ~ tag) }}" 
+                class="badge bg-secondary-subtle text-secondary-emphasis text-decoration-none px-3 py-2 rounded-pill fs-6 border"
+              >
+                #{{ tag }}
+              </a>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted small fst-italic" id="no-tags-placeholder">No tags assigned. Click "Edit Tags" to add tags.</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Source and Author Information -->
+      <div class="row g-3 pt-3 border-top">
+        <div class="col-12 col-md-6">
+          <span class="text-secondary small fw-semibold text-uppercase d-block mb-1">Source</span>
+          {% if source %}
+            <div class="d-flex align-items-center gap-2">
+              {% if source.favicon %}
+                <img src="{{ source.favicon }}" alt="" width="20" height="20" class="rounded-circle border">
+              {% else %}
+                <i class="bi bi-rss text-warning fs-5"></i>
+              {% endif %}
+              <a href="{{ url_for('sources.source_detail', id=source.id) }}" class="fw-semibold text-decoration-none">
+                {{ source.title or source.url }}
+              </a>
+              <span class="badge bg-secondary-subtle text-secondary border small">{{ source.source_type or 'RSS' }}</span>
+            </div>
+          {% else %}
+            <span class="text-muted small">Independent link (No parent feed source)</span>
+          {% endif %}
+        </div>
+
+        <div class="col-12 col-md-6">
+          <span class="text-secondary small fw-semibold text-uppercase d-block mb-1">Author / Channel</span>
+          <div class="fw-semibold">
+            {% if entry.author %}
+              <i class="bi bi-person me-1 text-primary"></i>{{ entry.author }}
+            {% else %}
+              <span class="text-muted fw-normal">Anonymous / Unspecified</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 3. Technical Metadata & External Research Tools Section -->
+  <div class="card mb-4 shadow-sm border">
+    <div class="card-header bg-body py-3 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fs-6 fw-bold">
+        <i class="bi bi-cpu me-2 text-primary"></i>Technical Details & External Verification
+      </h5>
+      <button class="btn btn-sm btn-link text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#techDetailsCollapse" aria-expanded="false" aria-controls="techDetailsCollapse">
+        Toggle Details
+      </button>
+    </div>
+
+    <div class="collapse show" id="techDetailsCollapse">
+      <div class="card-body">
+        
+        <!-- Social Metrics (if available) -->
+        {% if social %}
+          <div class="mb-4">
+            <h6 class="fw-semibold text-secondary small text-uppercase mb-2">Social Metrics</h6>
+            <div class="row g-2">
+              {% if social.view_count is not none %}
+                <div class="col-6 col-sm-4 col-md-2">
+                  <div class="card bg-body-tertiary border p-2 text-center">
+                    <span class="text-muted small">Views</span>
+                    <strong class="fs-6">{{ "{:,}".format(social.view_count) }}</strong>
+                  </div>
+                </div>
+              {% endif %}
+              {% if social.stars is not none %}
+                <div class="col-6 col-sm-4 col-md-2">
+                  <div class="card bg-body-tertiary border p-2 text-center">
+                    <span class="text-muted small">Stars</span>
+                    <strong class="fs-6 text-warning"><i class="bi bi-star-fill me-1"></i>{{ social.stars }}</strong>
+                  </div>
+                </div>
+              {% endif %}
+              {% if social.followers_count is not none %}
+                <div class="col-6 col-sm-4 col-md-2">
+                  <div class="card bg-body-tertiary border p-2 text-center">
+                    <span class="text-muted small">Followers</span>
+                    <strong class="fs-6">{{ "{:,}".format(social.followers_count) }}</strong>
+                  </div>
+                </div>
+              {% endif %}
+              {% if social.thumbs_up is not none %}
+                <div class="col-6 col-sm-4 col-md-2">
+                  <div class="card bg-body-tertiary border p-2 text-center">
+                    <span class="text-muted small">Likes</span>
+                    <strong class="fs-6 text-success"><i class="bi bi-hand-thumbs-up me-1"></i>{{ "{:,}".format(social.thumbs_up) }}</strong>
+                  </div>
+                </div>
+              {% endif %}
+              {% if social.thumbs_down is not none %}
+                <div class="col-6 col-sm-4 col-md-2">
+                  <div class="card bg-body-tertiary border p-2 text-center">
+                    <span class="text-muted small">Dislikes</span>
+                    <strong class="fs-6 text-danger"><i class="bi bi-hand-thumbs-down me-1"></i>{{ "{:,}".format(social.thumbs_down) }}</strong>
+                  </div>
+                </div>
+              {% endif %}
+              {% if social.rating is not none %}
+                <div class="col-6 col-sm-4 col-md-2">
+                  <div class="card bg-body-tertiary border p-2 text-center">
+                    <span class="text-muted small">Rating</span>
+                    <strong class="fs-6">{{ social.rating }}</strong>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Database Fields Table -->
+        <div class="row g-3 mb-4">
+          <div class="col-12 col-md-6">
+            <table class="table table-sm table-borderless small mb-0">
+              <tbody>
+                <tr>
+                  <th class="text-secondary" style="width: 35%;">Entry ID:</th>
+                  <td class="font-monospace fw-bold">{{ entry.id }}</td>
+                </tr>
+                <tr>
+                  <th class="text-secondary">HTTP Status:</th>
+                  <td><code>{{ entry.status_code if entry.status_code else 'Unchecked' }}</code></td>
+                </tr>
+                <tr>
+                  <th class="text-secondary">Manual Status:</th>
+                  <td><code>{{ entry.manual_status_code if entry.manual_status_code else 'None' }}</code></td>
+                </tr>
+                <tr>
+                  <th class="text-secondary">Contents Type:</th>
+                  <td>{{ entry.contents_type or 'text/html' }}</td>
+                </tr>
+                <tr>
+                  <th class="text-secondary">Album:</th>
+                  <td>{{ entry.album or '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <table class="table table-sm table-borderless small mb-0">
+              <tbody>
+                <tr>
+                  <th class="text-secondary" style="width: 35%;">Date Created:</th>
+                  <td>{{ entry.date_created.strftime('%Y-%m-%d %H:%M:%S') if entry.date_created else '-' }}</td>
+                </tr>
+                <tr>
+                  <th class="text-secondary">Last Modified:</th>
+                  <td>{{ entry.date_last_modified.strftime('%Y-%m-%d %H:%M:%S') if entry.date_last_modified else '-' }}</td>
+                </tr>
+                <tr>
+                  <th class="text-secondary">Last Updated:</th>
+                  <td>{{ entry.date_update_last.strftime('%Y-%m-%d %H:%M:%S') if entry.date_update_last else '-' }}</td>
+                </tr>
+                <tr>
+                  <th class="text-secondary">Dead Since:</th>
+                  <td>{{ entry.date_dead_since.strftime('%Y-%m-%d %H:%M:%S') if entry.date_dead_since else '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Cryptographic Hashes -->
+        <div class="mb-4">
+          <h6 class="fw-semibold text-secondary small text-uppercase mb-2">Cryptographic Hashes</h6>
+          <div class="row g-2">
+            <div class="col-12 col-md-4">
+              <label class="form-label text-muted small mb-1">Contents Hash</label>
+              <input type="text" class="form-control form-control-sm font-monospace" readonly value="{{ entry.contents_hash or 'None' }}">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label text-muted small mb-1">Body Hash</label>
+              <input type="text" class="form-control form-control-sm font-monospace" readonly value="{{ entry.body_hash or 'None' }}">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label text-muted small mb-1">Meta Hash</label>
+              <input type="text" class="form-control form-control-sm font-monospace" readonly value="{{ entry.meta_hash or 'None' }}">
+            </div>
+          </div>
+        </div>
+
+        <!-- External Inspection Links -->
+        <div>
+          <h6 class="fw-semibold text-secondary small text-uppercase mb-2">External Verification & Tools</h6>
+          <div class="d-flex flex-wrap gap-2">
+            <!-- Wayback Machine -->
+            <a 
+              href="https://web.archive.org/web/*/{{ entry.link }}" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+            >
+              <i class="bi bi-archive me-1 text-primary"></i>Wayback Machine
+            </a>
+
+            <!-- Schema Validator -->
+            <a 
+              href="https://validator.schema.org/#url={{ entry.link }}" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+            >
+              <i class="bi bi-braces me-1 text-success"></i>Schema Validator
+            </a>
+
+            <!-- Whois Lookup -->
+            {% if domain %}
+              <a 
+                href="https://www.whois.com/whois/{{ domain }}" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+              >
+                <i class="bi bi-globe me-1 text-info"></i>Whois Domain
+              </a>
+            {% endif %}
+
+            <!-- Google Search -->
+            <a 
+              href="https://www.google.com/search?q={{ entry.link }}" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+            >
+              <i class="bi bi-google me-1 text-warning"></i>Google Search
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Comments Section -->
+  <div class="card mb-4 shadow-sm border">
+    <div class="card-header bg-body py-3 d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 fs-6 fw-bold">
+        <i class="bi bi-chat-text me-2 text-primary"></i>User Comments
+      </h5>
+      <button 
+        type="button" 
+        class="btn btn-sm btn-primary rounded-pill px-3" 
+        id="btn-add-comment"
+        data-bs-toggle="modal" 
+        data-bs-target="#commentModal"
+      >
+        <i class="bi bi-plus-circle me-1"></i>Add Comment
+      </button>
+    </div>
+    <div class="card-body">
+      <div id="comments-list" class="d-flex flex-column gap-3">
+        <!-- Rendered dynamically by JavaScript via localStorage -->
+      </div>
+      <div id="no-comments-msg" class="text-muted text-center py-4 small">
+        <i class="bi bi-chat-left-dots display-6 d-block mb-2 text-secondary opacity-50"></i>
+        No comments yet for this entry. Click <strong>Add Comment</strong> to leave notes or observations.
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Entry Transition History Pane -->
+  <div class="card mb-4 shadow-sm border">
+    <div class="card-header bg-body py-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <h5 class="mb-0 fs-6 fw-bold">
+          <i class="bi bi-signpost-split me-2 text-primary"></i>Navigation Transitions
+        </h5>
+        <span class="badge bg-secondary-subtle text-secondary border">
+          {{ transitions | length }} Recorded
+        </span>
+      </div>
+      <div class="text-muted small mt-1">
+        Entries navigated to from this entry, tracked in <code>entrytransitionhistory</code>
+      </div>
+    </div>
+    <div class="card-body">
+      {% if not transitions %}
+        <div class="text-muted text-center py-4 small">
+          <i class="bi bi-compass display-6 d-block mb-2 text-secondary opacity-50"></i>
+          No navigation transitions recorded from this entry yet.<br>
+          Navigating to other entries from here will build the relationship graph.
+        </div>
+      {% else %}
+        <div class="row g-3">
+          {% for t in transitions %}
+            <div class="col-12 col-md-6 col-lg-4">
+              <div class="card h-100 border shadow-sm p-3 entry-card-clickable" data-detail-url="{{ url_for('entries.entry_detail_view', id=t.entry.id, from_entry_id=entry.id) }}">
+                <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                  <h6 class="card-title mb-0 fw-semibold text-truncate">
+                    <a href="{{ url_for('entries.entry_detail_view', id=t.entry.id, from_entry_id=entry.id) }}" class="text-body text-decoration-none">
+                      {{ t.entry.title or t.entry.link }}
+                    </a>
+                  </h6>
+                  <span class="badge bg-primary-subtle text-primary border rounded-pill flex-shrink-0" title="Number of transitions to this entry">
+                    {{ t.counter }}x
+                  </span>
+                </div>
+
+                {% if t.entry.description %}
+                  <p class="text-muted small mb-2 text-truncate" style="max-height: 40px;">
+                    {{ t.entry.description }}
+                  </p>
+                {% endif %}
+
+                <div class="mt-auto d-flex align-items-center justify-content-between text-secondary small pt-2 border-top">
+                  <span class="text-truncate" style="max-width: 180px;">{{ t.entry.author or 'Entry' }}</span>
+                  <a href="{{ url_for('entries.entry_detail_view', id=t.entry.id, from_entry_id=entry.id) }}" class="btn btn-sm btn-link p-0 text-decoration-none">
+                    View <i class="bi bi-arrow-right"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal 1: Delete Entry Confirmation -->
+<div class="modal fade" id="deleteEntryModal" tabindex="-1" aria-labelledby="deleteEntryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow border-0">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title text-danger fw-bold d-flex align-items-center gap-2" id="deleteEntryModalLabel">
+          <i class="bi bi-exclamation-triangle-fill"></i>Delete Entry
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-2">
+        <p>Are you sure you want to permanently delete this entry from your link archive?</p>
+        <p class="fw-bold mb-2">{{ entry.title or entry.link }}</p>
+        <div class="alert alert-warning small mb-0">
+          This operation will cascade and remove all associated tags, bookmarks, social data, visits, and transition paths.
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm rounded-pill px-4" id="confirm-delete-entry-btn" data-id="{{ entry.id }}">
+          <i class="bi bi-trash me-1"></i>Delete Entry
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal 2: Edit Tags -->
+<div class="modal fade" id="editTagsModal" tabindex="-1" aria-labelledby="editTagsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow border-0">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="editTagsModalLabel">
+          <i class="bi bi-tags text-primary"></i>Edit Tags
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-2">
+        <label for="tags-input-modal" class="form-label small fw-semibold">Comma-separated tags:</label>
+        <input 
+          type="text" 
+          class="form-control shadow-sm" 
+          id="tags-input-modal" 
+          value="{{ tags | join(', ') }}" 
+          placeholder="e.g. python, programming, news"
+        >
+        <div class="form-text small">Tags are stored in lowercase without leading hash symbols.</div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill px-4" id="save-tags-modal-btn" data-id="{{ entry.id }}">
+          <i class="bi bi-check2 me-1"></i>Save Tags
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal 3: Add / Edit Comment -->
+<div class="modal fade" id="commentModal" tabindex="-1" aria-labelledby="commentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow border-0">
+      <div class="modal-header border-bottom-0">
+        <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="commentModalLabel">
+          <i class="bi bi-chat-text text-primary"></i><span id="comment-modal-title">Add Comment</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-2">
+        <input type="hidden" id="comment-edit-id" value="">
+        <div class="mb-3">
+          <label for="comment-author-input" class="form-label small fw-semibold">Author (optional):</label>
+          <input type="text" class="form-control form-control-sm shadow-sm" id="comment-author-input" placeholder="Your name or handle" value="User">
+        </div>
+        <div class="mb-2">
+          <label for="comment-text-input" class="form-label small fw-semibold">Comment / Note:</label>
+          <textarea class="form-control shadow-sm" id="comment-text-input" rows="4" placeholder="Write your notes, summaries, or thoughts..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer border-top-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm rounded-pill px-4" id="save-comment-btn">
+          <i class="bi bi-check2 me-1"></i>Save Comment
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  $(document).ready(function() {
+    const entryId = {{ entry.id }};
+
+    function showToast(message, isSuccess = true) {
+      const toastEl = $('#detail-toast');
+      const toastBody = $('#detail-toast-body');
+      toastBody.text(message);
+      toastEl.removeClass('bg-success bg-danger').addClass(isSuccess ? 'bg-success' : 'bg-danger');
+      const toast = new bootstrap.Toast(toastEl[0]);
+      toast.show();
+    }
+
+    // 1. Copy Link to Clipboard
+    $('.btn-copy-link').on('click', function(e) {
+      e.preventDefault();
+      const link = $(this).data('link');
+      const btn = $(this);
+      const textSpan = btn.find('.copy-text');
+      const icon = btn.find('i');
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(function() {
+          icon.removeClass('bi-clipboard').addClass('bi-check2');
+          textSpan.text('Copied!');
+          btn.addClass('btn-success').removeClass('btn-outline-secondary');
+          showToast('Link copied to clipboard!');
+          setTimeout(function() {
+            icon.removeClass('bi-check2').addClass('bi-clipboard');
+            textSpan.text('Copy Link');
+            btn.removeClass('btn-success').addClass('btn-outline-secondary');
+          }, 2000);
+        }).catch(function() {
+          showToast('Failed to copy link.', false);
+        });
+      } else {
+        // Fallback for non-https contexts
+        const temp = $('<input>');
+        $('body').append(temp);
+        temp.val(link).select();
+        document.execCommand('copy');
+        temp.remove();
+        showToast('Link copied to clipboard!');
+      }
+    });
+
+    // 2. Mark Active Button
+    $('.btn-mark-active').on('click', function() {
+      const btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        url: '/api/entries/' + entryId + '/mark-active',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(res) {
+          if (res.success) {
+            $('#detail-status-badge').html(
+              '<span class="badge bg-success-subtle text-success border border-success-subtle shadow-sm">' +
+              '<i class="bi bi-check-circle me-1"></i>Active (200)</span>'
+            );
+            showToast('Entry marked as active.');
+          }
+        },
+        error: function(xhr) {
+          showToast('Failed to mark active: ' + (xhr.responseJSON?.error || xhr.statusText), false);
+        },
+        complete: function() {
+          btn.prop('disabled', false);
+        }
+      });
+    });
+
+    // 3. Mark Dead Button
+    $('.btn-mark-dead').on('click', function() {
+      const btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        url: '/api/entries/' + entryId + '/mark-dead',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(res) {
+          if (res.success) {
+            $('#detail-status-badge').html(
+              '<span class="badge bg-danger shadow-sm">' +
+              '<i class="bi bi-skull me-1"></i>Dead Link (400)</span>'
+            );
+            showToast('Entry marked as dead.');
+          }
+        },
+        error: function(xhr) {
+          showToast('Failed to mark dead: ' + (xhr.responseJSON?.error || xhr.statusText), false);
+        },
+        complete: function() {
+          btn.prop('disabled', false);
+        }
+      });
+    });
+
+    // 4. Update Link Data
+    $('.btn-update-data').on('click', function() {
+      const btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        url: '/api/entries/' + entryId + '/update-data',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(res) {
+          if (res.success) {
+            showToast(res.message || 'Link metadata update job queued.');
+          }
+        },
+        error: function(xhr) {
+          showToast('Failed to queue update: ' + (xhr.responseJSON?.error || xhr.statusText), false);
+        },
+        complete: function() {
+          btn.prop('disabled', false);
+        }
+      });
+    });
+
+    // 5. Reset Link Data
+    $('.btn-reset-data').on('click', function() {
+      if (!confirm('Reset extracted hashes and cached status for this entry?')) return;
+      const btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        url: '/api/entries/' + entryId + '/reset-data',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(res) {
+          if (res.success) {
+            showToast('Link data reset successfully. Reloading...');
+            setTimeout(function() { location.reload(); }, 800);
+          }
+        },
+        error: function(xhr) {
+          showToast('Failed to reset data: ' + (xhr.responseJSON?.error || xhr.statusText), false);
+          btn.prop('disabled', false);
+        }
+      });
+    });
+
+    // 6. Delete Entry Confirmation
+    $('#confirm-delete-entry-btn').on('click', function() {
+      const btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        url: '/api/entries/' + entryId,
+        type: 'DELETE',
+        success: function(res) {
+          if (res.success) {
+            showToast('Entry deleted successfully.');
+            window.location.href = "{{ url_for('entries.search_view') }}";
+          }
+        },
+        error: function(xhr) {
+          showToast('Failed to delete entry: ' + (xhr.responseJSON?.error || xhr.statusText), false);
+          btn.prop('disabled', false);
+        }
+      });
+    });
+
+    // 7. Save Tags via Modal
+    $('#save-tags-modal-btn').on('click', function() {
+      const rawTags = $('#tags-input-modal').val();
+      const tagsList = rawTags.split(',').map(t => t.trim().replace(/^#/, '')).filter(t => t.length > 0);
+      const btn = $(this);
+      btn.prop('disabled', true);
+
+      $.ajax({
+        url: '/api/entries/' + entryId + '/tags',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ tags: tagsList }),
+        success: function(res) {
+          if (res.success && res.data) {
+            const updatedTags = res.data.tags;
+            const container = $('#detail-tags-container');
+            container.empty();
+            if (updatedTags.length > 0) {
+              updatedTags.forEach(function(tag) {
+                const badge = $('<a>')
+                  .attr('href', '/entries?q=tag:' + encodeURIComponent(tag))
+                  .addClass('badge bg-secondary-subtle text-secondary-emphasis text-decoration-none px-3 py-2 rounded-pill fs-6 border')
+                  .text('#' + tag);
+                container.append(badge);
+              });
+            } else {
+              container.html('<span class="text-muted small fst-italic" id="no-tags-placeholder">No tags assigned. Click "Edit Tags" to add tags.</span>');
+            }
+            $('#editTagsModal').modal('hide');
+            showToast('Tags updated successfully.');
+          }
+        },
+        error: function(xhr) {
+          showToast('Failed to update tags: ' + (xhr.responseJSON?.error || xhr.statusText), false);
+        },
+        complete: function() {
+          btn.prop('disabled', false);
+        }
+      });
+    });
+
+    // 8. Comments Client-Side Management (LocalStorage persisted)
+    const commentsStorageKey = 'yafr_comments_entry_' + entryId;
+
+    function getComments() {
+      try {
+        const raw = localStorage.getItem(commentsStorageKey);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveComments(comments) {
+      localStorage.setItem(commentsStorageKey, JSON.stringify(comments));
+      renderComments();
+    }
+
+    function renderComments() {
+      const comments = getComments();
+      const listEl = $('#comments-list');
+      const noCommentsMsg = $('#no-comments-msg');
+      listEl.empty();
+
+      if (comments.length === 0) {
+        noCommentsMsg.removeClass('d-none');
+        return;
+      }
+      noCommentsMsg.addClass('d-none');
+
+      comments.forEach(function(c, index) {
+        const item = $('<div>').addClass('card bg-body-tertiary border p-3');
+        const header = $('<div>').addClass('d-flex justify-content-between align-items-center mb-2');
+        const authorWrap = $('<div>').html(
+          '<strong class="small text-primary"><i class="bi bi-person me-1"></i>' + (c.author || 'User') + '</strong>' +
+          '<span class="text-muted small ms-2">&middot; ' + (c.date || 'Recently') + '</span>'
+        );
+        const actionsWrap = $('<div>').addClass('d-flex gap-1');
+        const editBtn = $('<button>')
+          .addClass('btn btn-sm btn-link text-secondary p-0 me-2')
+          .html('<i class="bi bi-pencil me-1"></i>Edit')
+          .on('click', function() {
+            openEditComment(index);
+          });
+        const deleteBtn = $('<button>')
+          .addClass('btn btn-sm btn-link text-danger p-0')
+          .html('<i class="bi bi-trash me-1"></i>Delete')
+          .on('click', function() {
+            if (confirm('Delete this comment?')) {
+              comments.splice(index, 1);
+              saveComments(comments);
+              showToast('Comment deleted.');
+            }
+          });
+
+        actionsWrap.append(editBtn).append(deleteBtn);
+        header.append(authorWrap).append(actionsWrap);
+
+        const textBody = $('<div>')
+          .addClass('small text-body')
+          .css({'white-space': 'pre-wrap', 'line-height': '1.5'})
+          .text(c.text);
+
+        item.append(header).append(textBody);
+        listEl.append(item);
+      });
+    }
+
+    function openEditComment(index) {
+      const comments = getComments();
+      const c = comments[index];
+      if (!c) return;
+
+      $('#comment-edit-id').val(index);
+      $('#comment-author-input').val(c.author || 'User');
+      $('#comment-text-input').val(c.text);
+      $('#comment-modal-title').text('Edit Comment');
+      $('#commentModal').modal('show');
+    }
+
+    $('#btn-add-comment').on('click', function() {
+      $('#comment-edit-id').val('');
+      $('#comment-text-input').val('');
+      $('#comment-modal-title').text('Add Comment');
+    });
+
+    $('#save-comment-btn').on('click', function() {
+      const text = $('#comment-text-input').val().trim();
+      const author = $('#comment-author-input').val().trim() || 'User';
+      if (!text) {
+        alert('Please enter comment text.');
+        return;
+      }
+
+      const comments = getComments();
+      const editIdStr = $('#comment-edit-id').val();
+      const nowStr = new Date().toLocaleString();
+
+      if (editIdStr !== '') {
+        const editIndex = parseInt(editIdStr, 10);
+        if (comments[editIndex]) {
+          comments[editIndex].author = author;
+          comments[editIndex].text = text;
+          comments[editIndex].date = nowStr + ' (edited)';
+        }
+      } else {
+        comments.unshift({
+          id: Date.now(),
+          author: author,
+          text: text,
+          date: nowStr
+        });
+      }
+
+      saveComments(comments);
+      $('#commentModal').modal('hide');
+      showToast('Comment saved.');
+    });
+
+    // Initial render of comments
+    renderComments();
+
+    // 9. Sync Read Later & Bookmark status badge on click
+    $(document).on('click', '.btn-read-later', function() {
+      setTimeout(function() {
+        const isActive = $('.btn-read-later').hasClass('active');
+        const badge = $('#detail-read-later-badge');
+        const btnText = $('.btn-read-later-text');
+        if (isActive) {
+          badge.removeClass('bg-secondary-subtle text-secondary border').addClass('bg-primary');
+          badge.html('<i class="bi bi-clock-fill me-1"></i>Read Later');
+          btnText.text('Remove from Read Later');
+        } else {
+          badge.removeClass('bg-primary').addClass('bg-secondary-subtle text-secondary border');
+          badge.html('<i class="bi bi-clock me-1"></i>Not in Read Later');
+          btnText.text('Save for Later');
+        }
+      }, 350);
+    });
+
+    $(document).on('click', '.btn-bookmark', function() {
+      setTimeout(function() {
+        const isMarked = $('.btn-bookmark i').hasClass('bi-bookmark-fill');
+        const badge = $('#detail-bookmark-badge');
+        if (isMarked) {
+          badge.removeClass('bg-secondary-subtle text-secondary border').addClass('bg-warning text-dark');
+          badge.html('<i class="bi bi-bookmark-fill me-1"></i>Bookmarked');
+        } else {
+          badge.removeClass('bg-warning text-dark').addClass('bg-secondary-subtle text-secondary border');
+          badge.html('<i class="bi bi-bookmark me-1"></i>Not Bookmarked');
+        }
+      }, 350);
+    });
+
+  });
+</script>
+{% endblock %}

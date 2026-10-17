@@ -90,3 +90,20 @@ code {
   display: inline-block;
   animation: spin 1s linear infinite;
 }
+
+/* Clickable Entry Cards */
+.entry-card-clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.entry-card-clickable:hover {
+  border-color: rgba(13, 110, 253, 0.45) !important;
+}
+
+/* Text Selection */
+.selectable-text {
+  user-select: text;
+  -webkit-user-select: text;
+}
+

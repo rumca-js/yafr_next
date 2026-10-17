@@ -84,7 +84,9 @@ class TestJobRepositoryAndService(unittest.TestCase):
         """Verifies sorting by priority, errors, and enabled."""
         # By priority (default)
         by_priority = self.repo.list_jobs(order_by="priority")
-        self.assertEqual([j.id for j in by_priority], [self.j2.id, self.j1.id, self.j3.id])
+        self.assertEqual(
+            [j.id for j in by_priority], [self.j2.id, self.j1.id, self.j3.id]
+        )
 
         # By errors
         by_errors = self.repo.list_jobs(order_by="errors")
@@ -127,13 +129,17 @@ class TestJobRepositoryAndService(unittest.TestCase):
 
     def test_job_service_batch_action(self):
         """Verifies JobService.batch_action wrapper."""
-        affected = JobService.batch_action([self.j1.id], action="pause", session=self.session)
+        affected = JobService.batch_action(
+            [self.j1.id], action="pause", session=self.session
+        )
         self.assertEqual(affected, 1)
         job = JobService.get_job(self.j1.id, session=self.session)
         self.assertFalse(job.enabled)
 
         with self.assertRaises(ValueError):
-            JobService.batch_action([self.j1.id], action="invalid-action", session=self.session)
+            JobService.batch_action(
+                [self.j1.id], action="invalid-action", session=self.session
+            )
 
 
 class TestJobWebRoutes(unittest.TestCase):

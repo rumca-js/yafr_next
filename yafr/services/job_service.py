@@ -129,9 +129,7 @@ class JobService:
         )
 
     @classmethod
-    def pause_job(
-        cls, job_id: int, session: Optional[Session] = None
-    ) -> bool:
+    def pause_job(cls, job_id: int, session: Optional[Session] = None) -> bool:
         """
         Pauses an active job by setting enabled = False.
 
@@ -144,9 +142,7 @@ class JobService:
         return repo.set_job_status(job_id, enabled=False)
 
     @classmethod
-    def resume_job(
-        cls, job_id: int, session: Optional[Session] = None
-    ) -> bool:
+    def resume_job(cls, job_id: int, session: Optional[Session] = None) -> bool:
         """
         Resumes a paused job by setting enabled = True.
 
@@ -159,9 +155,7 @@ class JobService:
         return repo.set_job_status(job_id, enabled=True)
 
     @classmethod
-    def delete_job(
-        cls, job_id: int, session: Optional[Session] = None
-    ) -> bool:
+    def delete_job(cls, job_id: int, session: Optional[Session] = None) -> bool:
         """
         Deletes a background task by ID.
 
@@ -204,9 +198,7 @@ class JobService:
             raise ValueError(f"Unsupported batch action: {action}")
 
     @classmethod
-    def get_job_types(
-        cls, session: Optional[Session] = None
-    ) -> List[str]:
+    def get_job_types(cls, session: Optional[Session] = None) -> List[str]:
         """
         Retrieves all distinct job type names currently in the database.
 
@@ -218,9 +210,7 @@ class JobService:
         return repo.get_distinct_job_types()
 
     @classmethod
-    def count_error_jobs(
-        cls, session: Optional[Session] = None
-    ) -> int:
+    def count_error_jobs(cls, session: Optional[Session] = None) -> int:
         """
         Retrieves total number of jobs with errors > 0.
 

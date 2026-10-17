@@ -100,6 +100,7 @@ def toggle_read_later(entry_id: int):
 def record_visit(entry_id: int):
     """
     Records a visit when a user navigates to an entry link.
+    Optionally records navigation transition if 'from_entry_id' is supplied.
     """
     session = get_session()
     entry_repo = EntryRepository(session)
@@ -108,6 +109,16 @@ def record_visit(entry_id: int):
 
     history_repo = HistoryRepository(session)
     visit = history_repo.record_visit(entry_id)
+
+    payload = request.get_json(silent=True) or {}
+    from_entry_id = payload.get("from_entry_id")
+    if from_entry_id is not None:
+        try:
+            from_id = int(from_entry_id)
+            if from_id != entry_id and entry_repo.get_by_id(from_id):
+                history_repo.record_transition(from_id, entry_id)
+        except (ValueError, TypeError) as err:
+            logger.debug("Ignored invalid from_entry_id: %s", err)
 
     return api_response(
         success=True,
@@ -140,6 +151,91 @@ def set_status(entry_id: int):
         success=True,
         data={"entry_id": entry_id, "manual_status_code": status_code},
         message="Status updated",
+    )
+
+
+@api_entries_bp.route("/<int:entry_id>/mark-active", methods=["POST"])
+def mark_active(entry_id: int):
+    """
+    Sets manual_status_code = 200 (marking the entry as verified active).
+    """
+    session = get_session()
+    repo = EntryRepository(session)
+    success = repo.set_manual_status(entry_id, 200)
+    if not success:
+        return api_response(success=False, error="Entry not found", status_code=404)
+
+    return api_response(
+        success=True,
+        data={"entry_id": entry_id, "manual_status_code": 200},
+        message="Entry marked active",
+    )
+
+
+@api_entries_bp.route("/<int:entry_id>/mark-dead", methods=["POST"])
+def mark_dead(entry_id: int):
+    """
+    Sets manual_status_code = 400 (marking the entry as dead).
+    """
+    session = get_session()
+    repo = EntryRepository(session)
+    success = repo.set_manual_status(entry_id, 400)
+    if not success:
+        return api_response(success=False, error="Entry not found", status_code=404)
+
+    return api_response(
+        success=True,
+        data={"entry_id": entry_id, "manual_status_code": 400},
+        message="Entry marked dead",
+    )
+
+
+@api_entries_bp.route("/<int:entry_id>/update-data", methods=["POST"])
+def update_data(entry_id: int):
+    """
+    Enqueues a link metadata refresh job for the entry.
+    """
+    session = get_session()
+    entry_repo = EntryRepository(session)
+    entry = entry_repo.get_by_id(entry_id)
+    if not entry:
+        return api_response(success=False, error="Entry not found", status_code=404)
+
+    from yafr.services.job_service import JobService
+
+    job = JobService.create_job(
+        job="link-update-data",
+        subject=str(entry_id),
+        session=session,
+    )
+    return api_response(
+        success=True,
+        data={"entry_id": entry_id, "job_id": job.id},
+        message="Link update queued.",
+    )
+
+
+@api_entries_bp.route("/<int:entry_id>/reset-data", methods=["POST"])
+def reset_data(entry_id: int):
+    """
+    Resets extracted metadata hashes and status code back to raw state.
+    """
+    session = get_session()
+    entry_repo = EntryRepository(session)
+    entry = entry_repo.get_by_id(entry_id)
+    if not entry:
+        return api_response(success=False, error="Entry not found", status_code=404)
+
+    entry.contents_hash = None
+    entry.body_hash = None
+    entry.meta_hash = None
+    entry.status_code = 0
+    session.commit()
+
+    return api_response(
+        success=True,
+        data={"entry_id": entry_id},
+        message="Link data reset.",
     )
 
 

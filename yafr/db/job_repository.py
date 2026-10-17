@@ -169,16 +169,22 @@ class JobRepository(BaseRepository[BackgroundJob]):
         if has_errors is True:
             stmt = stmt.where(BackgroundJob.errors > 0)
         elif has_errors is False:
-            stmt = stmt.where((BackgroundJob.errors == 0) | (BackgroundJob.errors.is_(None)))
+            stmt = stmt.where(
+                (BackgroundJob.errors == 0) | (BackgroundJob.errors.is_(None))
+            )
         if job_type:
             stmt = stmt.where(BackgroundJob.job == job_type)
 
         if order_by == "date_created":
             stmt = stmt.order_by(BackgroundJob.date_created.desc())
         elif order_by == "errors":
-            stmt = stmt.order_by(BackgroundJob.errors.desc(), BackgroundJob.priority.asc())
+            stmt = stmt.order_by(
+                BackgroundJob.errors.desc(), BackgroundJob.priority.asc()
+            )
         elif order_by == "enabled":
-            stmt = stmt.order_by(BackgroundJob.enabled.desc(), BackgroundJob.priority.asc())
+            stmt = stmt.order_by(
+                BackgroundJob.enabled.desc(), BackgroundJob.priority.asc()
+            )
         else:
             stmt = stmt.order_by(
                 BackgroundJob.priority.asc(), BackgroundJob.date_created.asc()
@@ -211,7 +217,9 @@ class JobRepository(BaseRepository[BackgroundJob]):
         if has_errors is True:
             stmt = stmt.where(BackgroundJob.errors > 0)
         elif has_errors is False:
-            stmt = stmt.where((BackgroundJob.errors == 0) | (BackgroundJob.errors.is_(None)))
+            stmt = stmt.where(
+                (BackgroundJob.errors == 0) | (BackgroundJob.errors.is_(None))
+            )
         if job_type:
             stmt = stmt.where(BackgroundJob.job == job_type)
 

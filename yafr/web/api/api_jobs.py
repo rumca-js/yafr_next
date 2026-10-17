@@ -71,7 +71,9 @@ def list_jobs_api():
                         "priority": j.priority,
                         "errors": j.errors or 0,
                         "enabled": bool(j.enabled),
-                        "date_created": j.date_created.isoformat() if j.date_created else None,
+                        "date_created": (
+                            j.date_created.isoformat() if j.date_created else None
+                        ),
                     }
                     for j in jobs
                 ],
@@ -104,9 +106,13 @@ def create_job():
         subject = data.get("subject", "").strip()
 
         if not job:
-            return api_response(success=False, error="Job type ('job') is required", status_code=400)
+            return api_response(
+                success=False, error="Job type ('job') is required", status_code=400
+            )
         if not subject:
-            return api_response(success=False, error="Job subject is required", status_code=400)
+            return api_response(
+                success=False, error="Job subject is required", status_code=400
+            )
 
         priority = int(data.get("priority", 1))
         task = data.get("task", "").strip() or None
@@ -133,11 +139,16 @@ def create_job():
             session=session,
         )
 
-        return jsonify({
-            "success": True,
-            "job_id": created_job.id,
-            "message": f"Job #{created_job.id} created successfully.",
-        }), 201
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "job_id": created_job.id,
+                    "message": f"Job #{created_job.id} created successfully.",
+                }
+            ),
+            201,
+        )
     except Exception as err:
         logger.error("Failed to create job: %s", err)
         return api_response(success=False, error=str(err), status_code=500)
@@ -156,7 +167,9 @@ def pause_job(job_id: int):
 
         success = JobService.pause_job(job_id, session=session)
         if not success:
-            return api_response(success=False, error="Failed to pause job", status_code=500)
+            return api_response(
+                success=False, error="Failed to pause job", status_code=500
+            )
 
         return jsonify({"success": True, "job_id": job_id, "enabled": False})
     except Exception as err:
@@ -177,7 +190,9 @@ def resume_job(job_id: int):
 
         success = JobService.resume_job(job_id, session=session)
         if not success:
-            return api_response(success=False, error="Failed to resume job", status_code=500)
+            return api_response(
+                success=False, error="Failed to resume job", status_code=500
+            )
 
         return jsonify({"success": True, "job_id": job_id, "enabled": True})
     except Exception as err:
@@ -198,7 +213,9 @@ def delete_job(job_id: int):
 
         success = JobService.delete_job(job_id, session=session)
         if not success:
-            return api_response(success=False, error="Failed to delete job", status_code=500)
+            return api_response(
+                success=False, error="Failed to delete job", status_code=500
+            )
 
         return jsonify({"success": True, "deleted_job_id": job_id})
     except Exception as err:
@@ -232,14 +249,18 @@ def batch_action():
             )
 
         session = get_session()
-        affected_count = JobService.batch_action(job_ids, action=action, session=session)
+        affected_count = JobService.batch_action(
+            job_ids, action=action, session=session
+        )
 
-        return jsonify({
-            "success": True,
-            "affected_count": affected_count,
-            "action": action,
-            "message": f"Successfully performed '{action}' on {affected_count} jobs.",
-        })
+        return jsonify(
+            {
+                "success": True,
+                "affected_count": affected_count,
+                "action": action,
+                "message": f"Successfully performed '{action}' on {affected_count} jobs.",
+            }
+        )
     except Exception as err:
         logger.error("Failed to execute batch job action: %s", err)
         return api_response(success=False, error=str(err), status_code=500)

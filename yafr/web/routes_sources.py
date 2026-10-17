@@ -173,10 +173,9 @@ def source_detail(id: int):
             if df:
                 if df.tzinfo is not None:
                     df = df.astimezone(timezone.utc).replace(tzinfo=None)
-                cutoff_naive = (
-                    datetime.now(timezone.utc).replace(tzinfo=None)
-                    - timedelta(seconds=3600)
-                )
+                cutoff_naive = datetime.now(timezone.utc).replace(
+                    tzinfo=None
+                ) - timedelta(seconds=3600)
                 is_outdated = df < cutoff_naive
             else:
                 is_outdated = True
@@ -287,7 +286,9 @@ def source_add_email():
 
         if not url or not username:
             flash("Server URL and username are required.", "danger")
-            return render_template("sources/edit_email.html", source=None, credentials=None, is_new=True)
+            return render_template(
+                "sources/edit_email.html", source=None, credentials=None, is_new=True
+            )
 
         user = session.execute(select(User).limit(1)).scalar_one_or_none()
         if not user:
@@ -325,7 +326,9 @@ def source_add_email():
         flash(f"Email source '{new_source.title}' configured successfully.", "success")
         return redirect(url_for("sources.source_detail", id=new_source.id))
 
-    return render_template("sources/edit_email.html", source=None, credentials=None, is_new=True)
+    return render_template(
+        "sources/edit_email.html", source=None, credentials=None, is_new=True
+    )
 
 
 @sources_bp.route("/sources/<int:id>/edit-email", methods=["GET", "POST"])
@@ -339,7 +342,11 @@ def source_edit_email(id: int):
     if not source:
         abort(404)
 
-    credentials = session.get(Credentials, source.credentials_id) if source.credentials_id else None
+    credentials = (
+        session.get(Credentials, source.credentials_id)
+        if source.credentials_id
+        else None
+    )
 
     if request.method == "POST":
         title = request.form.get("title", "").strip() or source.url
@@ -392,7 +399,9 @@ def source_edit_email(id: int):
         flash(f"Email source '{title}' updated successfully.", "success")
         return redirect(url_for("sources.source_detail", id=id))
 
-    return render_template("sources/edit_email.html", source=source, credentials=credentials, is_new=False)
+    return render_template(
+        "sources/edit_email.html", source=source, credentials=credentials, is_new=False
+    )
 
 
 @sources_bp.route("/sources/new/parse", methods=["GET", "POST"])

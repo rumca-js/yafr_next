@@ -7,6 +7,18 @@
 
 $(document).ready(function () {
 
+  // 0. Trigger Entry Detail View on Entry List Item Click
+  $(document).on('click', '.entry-card-clickable, [data-detail-url]', function (e) {
+    // If clicked on an interactive control (link, button, input), do not intercept
+    if ($(e.target).closest('a, button, input, .btn, .btn-bookmark, .btn-set-vote, .btn-read-later, .badge').length) {
+      return;
+    }
+    const detailUrl = $(this).data('detail-url');
+    if (detailUrl) {
+      window.location.href = detailUrl;
+    }
+  });
+
   // 1. Visit Tracking on Link Click
   $(document).on('click', '.entry-link', function () {
     const entryId = $(this).data('id');

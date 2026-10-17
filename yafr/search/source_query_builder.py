@@ -127,7 +127,9 @@ class SourceSearchQueryBuilder:
                 expr = col != val if negated else col == val
             else:
                 like_pattern = f"%{val}%"
-                expr = col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                expr = (
+                    col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                )
             return expr
 
         if field_target == "title":
@@ -136,7 +138,9 @@ class SourceSearchQueryBuilder:
                 expr = col != val if negated else col == val
             else:
                 like_pattern = f"%{val}%"
-                expr = col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                expr = (
+                    col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                )
             return expr
 
         if field_target in ("tag", "auto_tag"):
@@ -145,7 +149,9 @@ class SourceSearchQueryBuilder:
                 expr = col != val if negated else col == val
             else:
                 like_pattern = f"%{val}%"
-                expr = col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                expr = (
+                    col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                )
             return expr
 
         if field_target in ("type", "source_type"):
@@ -154,7 +160,9 @@ class SourceSearchQueryBuilder:
                 expr = col != val if negated else col == val
             else:
                 like_pattern = f"%{val}%"
-                expr = col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                expr = (
+                    col.notilike(like_pattern) if negated else col.ilike(like_pattern)
+                )
             return expr
 
         if field_target in ("status", "enabled"):
@@ -208,9 +216,7 @@ class SourceSearchQueryBuilder:
         if filter_id == "title":
             return stmt.order_by(SourcesTable.title.asc())
         elif filter_id == "fetch_time":
-            return stmt.order_by(
-                SourceOperationalData.date_fetched.desc().nullslast()
-            )
+            return stmt.order_by(SourceOperationalData.date_fetched.desc().nullslast())
         else:
             # Default by URL
             return stmt.order_by(SourcesTable.url.asc())

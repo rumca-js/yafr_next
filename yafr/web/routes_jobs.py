@@ -67,7 +67,9 @@ def jobs_list():
         job_type=type_filter,
         session=session,
     )
-    total_pages = max(1, math.ceil(total_results / per_page)) if total_results > 0 else 1
+    total_pages = (
+        max(1, math.ceil(total_results / per_page)) if total_results > 0 else 1
+    )
 
     offset = (page - 1) * per_page
     jobs = JobService.list_jobs(

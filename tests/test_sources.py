@@ -169,7 +169,9 @@ class TestSourceRoutes(unittest.TestCase):
         self.assertIn("Ars Technica", html)
 
         # Verify in DB
-        created = self.repo.get_by_url("https://feeds.arstechnica.com/arstechnica/index")
+        created = self.repo.get_by_url(
+            "https://feeds.arstechnica.com/arstechnica/index"
+        )
         self.assertIsNotNone(created)
         self.assertEqual(created.title, "Ars Technica")
         self.assertEqual(created.source_type, "RSS")

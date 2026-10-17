@@ -2,13 +2,18 @@
 Entry routes and search views controller.
 """
 
+from datetime import datetime, timezone
+import logging
 import math
-from flask import Blueprint, render_template, request
+import re
+from urllib.parse import urlparse
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from sqlalchemy import select
-from linkarchivetools.model.definitions import SocialData, SourcesTable
+from linkarchivetools.model.definitions import LinkDataModel, SocialData, SourcesTable
 from yafr.db import ConfigRepository, EntryRepository, HistoryRepository, get_session
 from yafr.search import FilterRegistry, SearchParser, SearchQueryBuilder
 
+logger = logging.getLogger(__name__)
 entries_bp = Blueprint("entries", __name__)
 
 
@@ -122,3 +127,220 @@ def search_view():
         sources_map=sources_map,
         social_map=social_map,
     )
+
+
+@entries_bp.route("/entries/<int:id>")
+def entry_detail_view(id: int):
+    """
+    Renders EntryDetailView for a single entry.
+
+    Displays complete metadata, video playback frame (if YouTube/video),
+    vote widget, tags with edit controls, read-later toggle, status controls,
+    comments, and entry navigation transition pane.
+    """
+    session = get_session()
+    entry_repo = EntryRepository(session)
+    history_repo = HistoryRepository(session)
+    config_repo = ConfigRepository(session)
+
+    entry = entry_repo.get_by_id(id)
+    if not entry:
+        abort(404)
+
+    config = config_repo.get_config()
+
+    # Record user visit
+    history_repo.record_visit(entry.id)
+
+    # Track navigation transition if coming from another entry
+    from_entry_id = request.args.get("from_entry_id") or request.args.get("from")
+    if from_entry_id:
+        try:
+            from_id = int(from_entry_id)
+            if from_id != entry.id and entry_repo.get_by_id(from_id):
+                history_repo.record_transition(from_id, entry.id)
+        except (ValueError, TypeError) as err:
+            logger.debug("Ignored invalid from_entry_id transition parameter: %s", err)
+
+    # Retrieve source information if linked
+    source = None
+    if entry.source_id:
+        source = session.execute(
+            select(SourcesTable).where(SourcesTable.id == entry.source_id)
+        ).scalar_one_or_none()
+
+    # Associated tags
+    tags = entry_repo.get_tags(entry.id)
+
+    # Social data
+    social = entry_repo.get_social_data(entry.id)
+
+    # Read later and bookmarked state
+    is_read_later = history_repo.is_read_later(entry.id)
+    is_bookmarked = bool(entry.bookmarked)
+    is_dead = entry.manual_status_code == 400 or (
+        entry.status_code and entry.status_code >= 400
+    )
+
+    # Entry transition pane: entries previously navigated to from this entry
+    transitions_data = []
+    transitions_raw = history_repo.get_transitions_from(entry.id, limit=10)
+    if transitions_raw:
+        target_ids = [t.entry_to_id for t in transitions_raw]
+        target_records = (
+            session.execute(
+                select(LinkDataModel).where(LinkDataModel.id.in_(target_ids))
+            )
+            .scalars()
+            .all()
+        )
+        target_map = {e.id: e for e in target_records}
+
+        for t in transitions_raw:
+            t_entry = target_map.get(t.entry_to_id)
+            if t_entry:
+                transitions_data.append(
+                    {
+                        "entry": t_entry,
+                        "counter": t.counter or 1,
+                    }
+                )
+
+    # Rich media / YouTube video playback embed detection
+    embed_url = None
+    is_youtube = False
+    try:
+        from webtoolkit import UrlLocation, YouTubeVideoHandler
+
+        url_loc = UrlLocation(entry.link)
+        if url_loc.is_youtube():
+            is_youtube = True
+            yt_handler = YouTubeVideoHandler(entry.link)
+            embed_url = yt_handler.get_link_embed()
+    except Exception as err:
+        logger.debug("Webtoolkit YouTube detection exception: %s", err)
+
+    # Fallback regex for YouTube embed URL
+    if is_youtube and not embed_url:
+        yt_match = re.search(
+            r"(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})", entry.link
+        )
+        if yt_match:
+            embed_url = f"https://www.youtube.com/embed/{yt_match.group(1)}"
+
+    # Parse domain for external research tools (Wayback Machine, Schema, Whois)
+    parsed_url = urlparse(entry.link)
+    domain = parsed_url.netloc or ""
+
+    return render_template(
+        "entries/detail.html",
+        entry=entry,
+        source=source,
+        tags=tags,
+        social=social,
+        is_read_later=is_read_later,
+        is_bookmarked=is_bookmarked,
+        is_dead=is_dead,
+        transitions=transitions_data,
+        is_youtube=is_youtube,
+        embed_url=embed_url,
+        domain=domain,
+        config=config,
+    )
+
+
+@entries_bp.route("/entries/<int:id>/edit", methods=["GET", "POST"])
+def entry_edit_screen(id: int):
+    """
+    Renders EntryEditScreen to modify an existing entry's metadata.
+    """
+    session = get_session()
+    entry_repo = EntryRepository(session)
+    entry = entry_repo.get_by_id(id)
+    if not entry:
+        abort(404)
+
+    if request.method == "POST":
+        title = request.form.get("title", "").strip() or None
+        link = request.form.get("link", "").strip()
+        description = request.form.get("description", "").strip() or None
+        author = request.form.get("author", "").strip() or None
+        language = request.form.get("language", "").strip() or None
+        thumbnail = request.form.get("thumbnail", "").strip() or None
+        tags_str = request.form.get("tags", "")
+        tags = [t.strip().lstrip("#") for t in tags_str.split(",") if t.strip()]
+
+        date_published_str = request.form.get("date_published", "").strip()
+        date_published = None
+        if date_published_str:
+            try:
+                date_published = datetime.fromisoformat(date_published_str)
+            except ValueError:
+                pass
+
+        entry_repo.update_entry(
+            id,
+            title=title,
+            link=link or entry.link,
+            description=description,
+            author=author,
+            language=language,
+            thumbnail=thumbnail,
+            date_published=date_published or entry.date_published,
+        )
+        entry_repo.set_tags(id, tags)
+        flash("Entry metadata updated successfully.", "success")
+        return redirect(url_for("entries.entry_detail_view", id=id))
+
+    tags = entry_repo.get_tags(id)
+    return render_template("entries/edit.html", entry=entry, tags=tags, is_new=False)
+
+
+@entries_bp.route("/entries/new", methods=["GET", "POST"])
+def entry_create_screen():
+    """
+    Renders EntryEditScreen to create a new entry manually.
+    """
+    session = get_session()
+    entry_repo = EntryRepository(session)
+
+    if request.method == "POST":
+        link = request.form.get("link", "").strip()
+        if not link:
+            flash("URL Link is required.", "danger")
+            return render_template(
+                "entries/edit.html", entry=None, tags=[], is_new=True
+            )
+
+        title = request.form.get("title", "").strip() or None
+        description = request.form.get("description", "").strip() or None
+        author = request.form.get("author", "").strip() or None
+        language = request.form.get("language", "").strip() or None
+        thumbnail = request.form.get("thumbnail", "").strip() or None
+        tags_str = request.form.get("tags", "")
+        tags = [t.strip().lstrip("#") for t in tags_str.split(",") if t.strip()]
+
+        date_published_str = request.form.get("date_published", "").strip()
+        date_published = None
+        if date_published_str:
+            try:
+                date_published = datetime.fromisoformat(date_published_str)
+            except ValueError:
+                pass
+
+        new_entry = entry_repo.add_entry(
+            link=link,
+            title=title,
+            description=description,
+            author=author,
+            language=language,
+            thumbnail=thumbnail,
+            date_published=date_published,
+        )
+        if tags:
+            entry_repo.set_tags(new_entry.id, tags)
+
+        flash("Entry created successfully.", "success")
+        return redirect(url_for("entries.entry_detail_view", id=new_entry.id))
+
+    return render_template("entries/edit.html", entry=None, tags=[], is_new=True)

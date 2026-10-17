@@ -44,7 +44,9 @@ def logs_list():
     log_repo = LoggingRepository(session)
 
     total_results = log_repo.count_logs(min_level=min_level)
-    total_pages = max(1, math.ceil(total_results / per_page)) if total_results > 0 else 1
+    total_pages = (
+        max(1, math.ceil(total_results / per_page)) if total_results > 0 else 1
+    )
 
     offset = (page - 1) * per_page
     logs = log_repo.list_logs(min_level=min_level, limit=per_page, offset=offset)
