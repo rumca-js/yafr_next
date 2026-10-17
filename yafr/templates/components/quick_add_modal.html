@@ -1,0 +1,175 @@
+<!-- Quick Add Link Modal -->
+<div class="modal fade" id="quickAddLinkModal" tabindex="-1" aria-labelledby="quickAddLinkModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content shadow border-0">
+      <div class="modal-header border-bottom bg-body-tertiary py-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-link-45deg fs-4 text-primary"></i>
+          <h5 class="modal-title fw-bold" id="quickAddLinkModalLabel">Add Link to Database</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body p-4">
+        <!-- Tabs for Single vs Batch Link -->
+        <ul class="nav nav-pills nav-fill mb-3" id="addLinkTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active rounded-pill fw-semibold" id="single-link-tab" data-bs-toggle="pill" data-bs-target="#single-link-pane" type="button" role="tab" aria-controls="single-link-pane" aria-selected="true">
+              <i class="bi bi-link me-1"></i>Single Link
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-semibold" id="batch-link-tab" data-bs-toggle="pill" data-bs-target="#batch-link-pane" type="button" role="tab" aria-controls="batch-link-pane" aria-selected="false">
+              <i class="bi bi-collection me-1"></i>Batch Links (Up to 200)
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="addLinkTabsContent">
+          <!-- TAB 1: Single Link -->
+          <div class="tab-pane fade show active" id="single-link-pane" role="tabpanel" aria-labelledby="single-link-tab">
+            <form id="quick-add-single-form">
+              <!-- URL Input Field -->
+              <div class="mb-3">
+                <label for="quick-add-url" class="form-label fw-semibold">
+                  URL Link <span class="text-danger">*</span>
+                </label>
+                <div class="input-group shadow-sm">
+                  <span class="input-group-text bg-body border-end-0">
+                    <i class="bi bi-globe text-muted"></i>
+                  </span>
+                  <input 
+                    type="text" 
+                    class="form-control border-start-0" 
+                    id="quick-add-url" 
+                    placeholder="https://example.com/article" 
+                    required 
+                    autocomplete="off"
+                  >
+                  <button class="btn btn-outline-secondary" type="button" id="quick-add-paste-btn" title="Paste from clipboard">
+                    <i class="bi bi-clipboard"></i>
+                  </button>
+                </div>
+                <div class="form-text small">Leading and trailing whitespaces are automatically trimmed.</div>
+              </div>
+
+              <!-- Propositions / Clickable Suggestions Container -->
+              <div id="quick-add-propositions-container" class="mb-3 d-none">
+                <span class="small fw-semibold text-secondary me-2">Suggestions:</span>
+                <div id="quick-add-propositions" class="d-inline-flex flex-wrap gap-2 align-items-center"></div>
+              </div>
+
+              <!-- Live Validation Alert Box -->
+              <div id="quick-add-alert" class="alert d-none shadow-sm py-2 px-3 mb-3 small" role="alert"></div>
+
+              <!-- Title Field -->
+              <div class="mb-3">
+                <label for="quick-add-title" class="form-label fw-semibold">Title (Optional)</label>
+                <input type="text" class="form-control shadow-sm" id="quick-add-title" placeholder="Page or video title (leave empty to use link)">
+              </div>
+
+              <!-- Tags Field -->
+              <div class="mb-3">
+                <label for="quick-add-tags" class="form-label fw-semibold">Tags (Optional)</label>
+                <input type="text" class="form-control shadow-sm" id="quick-add-tags" placeholder="tech, news, python (comma-separated)">
+              </div>
+
+              <!-- Description Field -->
+              <div class="mb-3">
+                <label for="quick-add-description" class="form-label fw-semibold">Description / Notes (Optional)</label>
+                <textarea class="form-control shadow-sm" id="quick-add-description" rows="2" placeholder="Summary notes..."></textarea>
+              </div>
+
+              <!-- Options Checkboxes -->
+              <div class="d-flex flex-wrap gap-4 mb-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="quick-add-read-later">
+                  <label class="form-check-label small fw-medium" for="quick-add-read-later">
+                    <i class="bi bi-bookmark-plus text-primary me-1"></i>Add to Read Later
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="quick-add-ignore-policy">
+                  <label class="form-check-label small fw-medium text-muted" for="quick-add-ignore-policy">
+                    Override link policies (allow non-standard link)
+                  </label>
+                </div>
+              </div>
+
+              <!-- Single Form Actions -->
+              <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                <a href="{{ url_for('entries.entry_create_screen') }}" class="btn btn-link text-decoration-none text-muted small p-0">
+                  <i class="bi bi-pencil-square me-1"></i>Open Full Form
+                </a>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm" id="quick-add-submit-btn">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true"></span>
+                    <i class="bi bi-plus-circle me-1"></i>Add Link
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- TAB 2: Batch Add Links (Up to 200) -->
+          <div class="tab-pane fade" id="batch-link-pane" role="tabpanel" aria-labelledby="batch-link-tab">
+            <form id="quick-add-batch-form">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label for="quick-add-batch-urls" class="form-label fw-semibold mb-0">
+                    Paste Links (One per line) <span class="text-danger">*</span>
+                  </label>
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis" id="quick-add-batch-counter">0 / 200 links</span>
+                </div>
+                <textarea 
+                  class="form-control font-monospace shadow-sm" 
+                  id="quick-add-batch-urls" 
+                  rows="7" 
+                  placeholder="https://example.com/page-1&#10;https://example.com/page-2&#10;https://news.ycombinator.com"
+                  required
+                ></textarea>
+                <div class="form-text small">Maximum 200 links per submission. Whitespace is automatically stripped.</div>
+              </div>
+
+              <!-- Default Tags for Batch -->
+              <div class="mb-3">
+                <label for="quick-add-batch-tags" class="form-label fw-semibold">Default Tags for All Links</label>
+                <input type="text" class="form-control shadow-sm" id="quick-add-batch-tags" placeholder="e.g. batch, imported">
+              </div>
+
+              <!-- Batch Options -->
+              <div class="d-flex flex-wrap gap-4 mb-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="quick-add-batch-read-later">
+                  <label class="form-check-label small fw-medium" for="quick-add-batch-read-later">
+                    <i class="bi bi-bookmark-plus text-primary me-1"></i>Add all to Read Later
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="quick-add-batch-ignore-policy">
+                  <label class="form-check-label small fw-medium text-muted" for="quick-add-batch-ignore-policy">
+                    Override link policies
+                  </label>
+                </div>
+              </div>
+
+              <!-- Batch Result Alert Box -->
+              <div id="quick-add-batch-alert" class="alert d-none shadow-sm py-2 px-3 mb-3 small" role="alert"></div>
+
+              <!-- Batch Form Actions -->
+              <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm" id="quick-add-batch-submit-btn">
+                  <span class="spinner-border spinner-border-sm me-1 d-none" role="status" aria-hidden="true"></span>
+                  <i class="bi bi-cloud-arrow-up me-1"></i>Add All Links
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

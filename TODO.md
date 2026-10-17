@@ -18,3 +18,10 @@
  - provide dbupdate scripts
  - page properties tool
  - source list: order by errors
+
+
+There is     JOB_LINK_UPDATE_DATA = "link-update-data" background job. We have a worker thread, currently it
+  processes sources. If there are no jobs, it adds outdated jobs into queue, and starts processing them. When links
+  are added this job is added. Thread processes this job by obtaining Url like in webtools_service.py (either
+  BaseUrl, or RemoteUrl). Fetches BaseUrl.get_title(), BaseUrl.get_description() and updates entry(link) with these
+  properties. You can refactor webtools_service.py. Update PROJECT.md if needed. Update ARCHITECTURE.md if needed.
