@@ -245,6 +245,20 @@ class TestApiEntries(unittest.TestCase):
         history = HistoryRepository(self.session)
         self.assertTrue(history.is_read_later(created.id))
 
+        # Verify link-update-data background job was enqueued
+        from yafr.db.job_repository import JobRepository
+        from linkarchivetools.model.definitions import BackgroundJob
+        from sqlalchemy import select
+
+        job_repo = JobRepository(self.session)
+        queued_job = self.session.execute(
+            select(BackgroundJob).where(
+                BackgroundJob.job == "link-update-data",
+                BackgroundJob.subject == str(created.id),
+            )
+        ).scalar_one_or_none()
+        self.assertIsNotNone(queued_job)
+
     def test_api_batch_add_success(self):
         """POST /api/entries/batch-add creates multiple entries and reports counts."""
         links = [
@@ -272,6 +286,25 @@ class TestApiEntries(unittest.TestCase):
         self.assertIsNotNone(b1)
         self.assertIsNotNone(b2)
         self.assertIn("batch-tag", self.repo.get_tags(b1.id))
+
+        # Verify link-update-data jobs were enqueued for newly added entries
+        from linkarchivetools.model.definitions import BackgroundJob
+        from sqlalchemy import select
+
+        b1_job = self.session.execute(
+            select(BackgroundJob).where(
+                BackgroundJob.job == "link-update-data",
+                BackgroundJob.subject == str(b1.id),
+            )
+        ).scalar_one_or_none()
+        b2_job = self.session.execute(
+            select(BackgroundJob).where(
+                BackgroundJob.job == "link-update-data",
+                BackgroundJob.subject == str(b2.id),
+            )
+        ).scalar_one_or_none()
+        self.assertIsNotNone(b1_job)
+        self.assertIsNotNone(b2_job)
 
 
 if __name__ == "__main__":

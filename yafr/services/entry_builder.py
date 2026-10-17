@@ -28,6 +28,9 @@ from yafr.db.session import get_session
 
 logger = logging.getLogger(__name__)
 
+# Standard background job identifier for link metadata update
+JOB_LINK_UPDATE_DATA = "link-update-data"
+
 
 class EntryBuilder:
     """
@@ -262,29 +265,39 @@ class EntryBuilder:
         )
         if not is_web and not is_onion:
             if not self._get_config_bool("accept_unknown_links", default=False):
-                reason = "Invalid URL scheme: only web protocols (HTTP/HTTPS) are supported."
+                reason = (
+                    "Invalid URL scheme: only web protocols (HTTP/HTTPS) are supported."
+                )
                 self.last_rejection_reason = reason
                 return False, reason
 
         # 2. Configuration Policy Verification
         if not ignore_policy:
             # Tor / Onion check
-            if is_onion and not self._get_config_bool("accept_onion_links", default=False):
+            if is_onion and not self._get_config_bool(
+                "accept_onion_links", default=False
+            ):
                 reason = "Tor/Onion links are not accepted by current configuration."
                 self.last_rejection_reason = reason
                 return False, reason
 
             # IP link check
-            if loc.is_ip() and not self._get_config_bool("accept_ip_links", default=True):
+            if loc.is_ip() and not self._get_config_bool(
+                "accept_ip_links", default=True
+            ):
                 reason = "IP address links are not accepted by current configuration."
                 self.last_rejection_reason = reason
                 return False, reason
 
             # Domain link check (standard web domain URLs)
             has_domain = (
-                bool(loc.get_domain_only()) or loc.is_domain()
-            ) and not loc.is_ip() and not is_onion
-            if has_domain and not self._get_config_bool("accept_domain_links", default=True):
+                (bool(loc.get_domain_only()) or loc.is_domain())
+                and not loc.is_ip()
+                and not is_onion
+            )
+            if has_domain and not self._get_config_bool(
+                "accept_domain_links", default=True
+            ):
                 reason = "Domain links are not accepted by current configuration."
                 self.last_rejection_reason = reason
                 return False, reason
@@ -292,12 +305,16 @@ class EntryBuilder:
             # Non-domain link check
             if not has_domain and not loc.is_ip() and not is_onion:
                 if not self._get_config_bool("accept_non_domain_links", default=False):
-                    reason = "Non-domain links are not accepted by current configuration."
+                    reason = (
+                        "Non-domain links are not accepted by current configuration."
+                    )
                     self.last_rejection_reason = reason
                     return False, reason
 
             # Dead link check
-            if status_code >= 400 and not self._get_config_bool("accept_dead_links", default=False):
+            if status_code >= 400 and not self._get_config_bool(
+                "accept_dead_links", default=False
+            ):
                 reason = f"Dead links (status {status_code}) are not accepted by current configuration."
                 self.last_rejection_reason = reason
                 return False, reason
@@ -419,11 +436,16 @@ class EntryBuilder:
         resolved_date_published = date_published
         if isinstance(resolved_date_published, str) and resolved_date_published.strip():
             try:
-                resolved_date_published = datetime.fromisoformat(resolved_date_published)
+                resolved_date_published = datetime.fromisoformat(
+                    resolved_date_published
+                )
             except Exception:
                 try:
                     from email.utils import parsedate_to_datetime
-                    resolved_date_published = parsedate_to_datetime(resolved_date_published)
+
+                    resolved_date_published = parsedate_to_datetime(
+                        resolved_date_published
+                    )
                 except Exception:
                     resolved_date_published = None
         if not resolved_date_published:
@@ -478,6 +500,7 @@ class EntryBuilder:
         commit: bool = True,
         check_duplicates: bool = True,
         ignore_policy: bool = False,
+        enqueue_update_job: bool = False,
         **kwargs: Any,
     ) -> Optional[LinkDataModel]:
         """
@@ -498,6 +521,7 @@ class EntryBuilder:
         :param commit: If True, commits the transaction immediately; if False, flushes
         :param check_duplicates: If True, rejects existing links
         :param ignore_policy: If True, bypasses ConfigurationEntry accept_* flags
+        :param enqueue_update_job: If True, enqueues JOB_LINK_UPDATE_DATA ('link-update-data') background job
         :param kwargs: Additional fields passed to LinkDataModel
         :return: Created LinkDataModel instance or None if rejected
         """
@@ -529,15 +553,27 @@ class EntryBuilder:
             # Persist associated tags
             if resolved_tags:
                 for tag_str in resolved_tags:
-                    self.session.add(
-                        EntryCompactedTags(entry_id=entry.id, tag=tag_str)
-                    )
+                    self.session.add(EntryCompactedTags(entry_id=entry.id, tag=tag_str))
                 self.session.flush()
 
             # Handle auto_add_to_read_later from source
             if source and getattr(source, "auto_add_to_read_later", False):
                 from linkarchivetools.model.definitions import ReadLater
+
                 self.session.add(ReadLater(entry_id=entry.id, user_id=1))
+                self.session.flush()
+
+            # Enqueue link-update-data job (when added by user or explicitly requested)
+            if enqueue_update_job:
+                from yafr.db.job_repository import JobRepository
+
+                job_repo = JobRepository(self.session)
+                job_repo.enqueue_job(
+                    job="link-update-data",
+                    subject=str(entry.id),
+                    priority=2,
+                    enabled=True,
+                )
                 self.session.flush()
 
             if commit:

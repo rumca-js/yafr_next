@@ -264,10 +264,15 @@ stateDiagram-v2
    - Reads directly from the local SQLite `backgroundjob` table.
    - Recognizes job constants:
      - `JOB_PROCESS_SOURCE`, `JOB_LINK_UPDATE_DATA`, `JOB_LINK_RESET_DATA`, `JOB_LINK_DOWNLOAD_SOCIAL`, `JOB_RUN_RULE`, `JOB_CLEANUP`, `JOB_TRUNCATE_TABLE`.
+   - **`JOB_LINK_UPDATE_DATA = "link-update-data"` Execution**:
+     - Obtains URL handler like in `webtools_service.py` (`BaseUrl` or `RemoteUrl` based on active configuration).
+     - Executes network request and invokes `BaseUrl.get_title()` and `BaseUrl.get_description()` (with fallback to BeautifulSoup HTML parsing).
+     - Updates entry (`linkdatamodel`) with title, description, HTTP `status_code`, and `date_update_last`.
    - Executes jobs sequentially based on priority.
    - Records errors in `backgroundjob.errors`. If consecutive failures exceed max retries (3), disables the job (`enabled = False`) and creates an entry in `applogging`.
-2. **SourceRefreshWorker**:
+2. **SourceRefreshWorker & Outdated Jobs Handling**:
    - Triggered when no explicit `BackgroundJob` tasks are pending.
+   - When the job queue is empty, outdated sources (> 1h since last fetch) are enqueued or automatically refreshed.
    - **Filter Rules**:
      - Disabled sources (`enabled = False`) are strictly skipped.
      - Sources fetched within the last hour (`datetime.now() - date_fetched < 1 hour`) are skipped unless explicitly triggered by user pull-to-refresh.
@@ -380,6 +385,7 @@ Users can add links manually via the Quick Add modal accessible from the navbar 
   - Version upgraded to `https://`.
 - **Policy & Rule Feedback**: Real-time feedback if a link violates domain, IP, Tor onion, or dead link policies, with an option to override for manual additions. Alerts if a link is blocked by `EntryRules`.
 - **Batch Link Ingestion (`/api/entries/batch-add`)**: Textarea allowing pasting up to 200 URLs at once, sanitized and de-duplicated through `EntryBuilder`.
+- **Asynchronous Metadata Fetching (`JOB_LINK_UPDATE_DATA`)**: When links are added by the user (via Quick Add, Batch Ingestion, or New Entry screen), a `JOB_LINK_UPDATE_DATA = "link-update-data"` job is enqueued. The worker thread fetches `BaseUrl.get_title()` and `BaseUrl.get_description()` via `WebToolsWrapper` to populate entry title and description.
 
 ---
 

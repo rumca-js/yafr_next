@@ -14,6 +14,11 @@ from yafr.db.session import get_session
 
 logger = logging.getLogger(__name__)
 
+# Standard Background Job Types
+JOB_LINK_UPDATE_DATA = "link-update-data"
+JOB_PROCESS_SOURCE = "process-source"
+JOB_CLEANUP = "cleanup"
+
 
 class JobService:
     """

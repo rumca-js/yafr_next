@@ -341,7 +341,11 @@ The screen displays, where available:
 # Jobs
  - There should be a background task. It should handle processing of jobs.
  - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
- - when there are no jobs, then check if any of source requires refresh
+ - JOB_LINK_UPDATE_DATA = "link-update-data": updates link title, description, and metadata.
+ - When links are added by the user, this job is added to the background queue.
+ - Worker thread processes this job by obtaining Url like in webtools_service.py (either BaseUrl or RemoteUrl).
+ - Fetches BaseUrl.get_title(), BaseUrl.get_description() and updates entry(link) with these properties.
+ - when there are no jobs, then check if any of source requires refresh, adds outdated jobs into queue, and starts processing them.
  - Jobs processing should be done as a separate python script. It shall process jobs
 
 # Databases management

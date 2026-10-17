@@ -341,10 +341,13 @@ def entry_create_screen():
                 date_published=date_published,
                 tags=tags,
                 ignore_policy=True,
+                enqueue_update_job=True,
                 commit=True,
             )
             if not new_entry:
-                flash(builder.last_rejection_reason or "Failed to create entry.", "danger")
+                flash(
+                    builder.last_rejection_reason or "Failed to create entry.", "danger"
+                )
                 return render_template(
                     "entries/edit.html", entry=None, tags=tags, is_new=True
                 )

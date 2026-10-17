@@ -465,6 +465,43 @@ class TestWebToolsStatusApi(unittest.TestCase):
             self.assertTrue(data.get("success"))
             self.assertTrue(data.get("online"))
 
+    def test_get_title_and_description_from_handler(self):
+        """WebToolsWrapper.get_title and get_description delegates to url_handler."""
+        wrapper = WebToolsWrapper(
+            url="https://example.com/test-page", session=self.session
+        )
+        wrapper.url_handler = MagicMock()
+        wrapper.url_handler.get_title.return_value = "Mocked Page Title"
+        wrapper.url_handler.get_description.return_value = "Mocked Page Description"
+        wrapper._response = MagicMock(is_valid=lambda: True)
+
+        self.assertEqual(wrapper.get_title(), "Mocked Page Title")
+        self.assertEqual(wrapper.get_description(), "Mocked Page Description")
+
+    def test_get_title_and_description_html_fallback(self):
+        """WebToolsWrapper falls back to parsing HTML when handler does not provide title/description."""
+        html_doc = """
+        <html>
+            <head>
+                <title>HTML Fallback Title</title>
+                <meta name="description" content="HTML Fallback Description" />
+            </head>
+            <body>Content</body>
+        </html>
+        """
+        wrapper = WebToolsWrapper(
+            url="https://example.com/html-fallback", session=self.session
+        )
+        wrapper.url_handler = MagicMock(spec=[])  # No get_title / get_description
+        mock_resp = MagicMock()
+        mock_resp.get_text.return_value = html_doc
+        mock_resp.get_title.return_value = None
+        mock_resp.get_description.return_value = None
+        wrapper._response = mock_resp
+
+        self.assertEqual(wrapper.get_title(), "HTML Fallback Title")
+        self.assertEqual(wrapper.get_description(), "HTML Fallback Description")
+
 
 if __name__ == "__main__":
     unittest.main()

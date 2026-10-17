@@ -369,7 +369,9 @@ def validate_link():
     # Proposition: Upgrade to HTTPS
     if trimmed_url.lower().startswith("http://") and not loc.is_onion():
         https_url = "https://" + trimmed_url[7:]
-        if https_url != cleaned and not any(p["url"] == https_url for p in propositions):
+        if https_url != cleaned and not any(
+            p["url"] == https_url for p in propositions
+        ):
             propositions.append({"label": "Upgrade to HTTPS", "url": https_url})
 
     return api_response(
@@ -425,6 +427,7 @@ def quick_add():
             tags=tags,
             check_duplicates=True,
             ignore_policy=ignore_policy,
+            enqueue_update_job=True,
             commit=False,
         )
 
@@ -491,13 +494,16 @@ def batch_add():
                 tags=default_tags,
                 check_duplicates=True,
                 ignore_policy=ignore_policy,
+                enqueue_update_job=True,
                 commit=False,
             )
 
             if entry is not None:
                 if read_later:
                     session.add(ReadLater(entry_id=entry.id, user_id=1))
-                added_entries.append({"id": entry.id, "link": entry.link, "title": entry.title})
+                added_entries.append(
+                    {"id": entry.id, "link": entry.link, "title": entry.title}
+                )
             else:
                 if "Duplicate" in (builder.last_rejection_reason or ""):
                     duplicate_count += 1

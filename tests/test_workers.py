@@ -87,9 +87,11 @@ class TestJobExecutor(unittest.TestCase):
         self.assertIsNotNone(history_entry)
 
     def test_process_link_update_data_job(self):
-        """JobExecutor processes link-update-data task and updates timestamp."""
+        """JobExecutor processes link-update-data task and updates title, description, and timestamp."""
         entry = self.entry_repo.add_entry(
-            link="https://example.com/item", title="Old Item"
+            link="https://example.com/item",
+            title="Old Item",
+            description="Old Description",
         )
         entry_id = entry.id
 
@@ -101,14 +103,59 @@ class TestJobExecutor(unittest.TestCase):
         )
 
         executor = JobExecutor(session=self.session, auto_refresh_sources=False)
-        result = executor.process_one(session=self.session)
+
+        with patch("yafr.workers.jobs.link_jobs.WebToolsWrapper") as mock_webtools_cls:
+            mock_client = MagicMock()
+            mock_handler = MagicMock()
+            mock_handler.get_title.return_value = "Updated Web Title"
+            mock_handler.get_description.return_value = "Updated Web Description"
+            mock_client.url_handler = mock_handler
+            mock_client.get_title.return_value = "Updated Web Title"
+            mock_client.get_description.return_value = "Updated Web Description"
+            mock_client.get_response.return_value = MagicMock(is_valid=lambda: True)
+            mock_client.get_status_code.return_value = 200
+            mock_webtools_cls.return_value = mock_client
+
+            result = executor.process_one(session=self.session)
 
         self.assertIsNotNone(result)
         self.assertTrue(result["success"])
         self.assertEqual(result["job_id"], job.id)
 
+        # Verify entry properties updated in database
+        updated_entry = self.entry_repo.get_by_id(entry_id)
+        self.assertEqual(updated_entry.title, "Updated Web Title")
+        self.assertEqual(updated_entry.description, "Updated Web Description")
+        self.assertEqual(updated_entry.status_code, 200)
+        self.assertIsNotNone(updated_entry.date_update_last)
+
         # Job completed and archived
         self.assertIsNone(self.job_repo.get_by_id(BackgroundJob, job.id))
+
+    def test_enqueue_outdated_jobs(self):
+        """enqueue_outdated_jobs enqueues process-source jobs for outdated sources."""
+        source = self.source_repo.add_source(
+            url="https://example.com/outdated_feed.xml",
+            title="Outdated Feed For Queue",
+            source_type="RSS",
+            enabled=True,
+        )
+        self.source_repo.update_operational_data(
+            source.id,
+            date_fetched=datetime.now(timezone.utc) - timedelta(hours=2),
+        )
+
+        executor = JobExecutor(session=self.session, auto_refresh_sources=False)
+        enqueued = executor.enqueue_outdated_jobs(session=self.session)
+
+        self.assertGreaterEqual(enqueued, 1)
+        pending_job = self.session.execute(
+            select(BackgroundJob).where(
+                BackgroundJob.job == "process-source",
+                BackgroundJob.subject == str(source.id),
+            )
+        ).scalar_one_or_none()
+        self.assertIsNotNone(pending_job)
 
     def test_process_source_job_success(self):
         """JobExecutor processes process-source task for an existing source."""
@@ -255,6 +302,57 @@ class TestProcessJobsScriptCLI(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertIn("[OK]", result.stdout)
             self.assertIn("cleanup", result.stdout)
+
+
+class TestModularJobHandlersAndRegistry(unittest.TestCase):
+    """
+    Test suite for modular background job handlers and JobRegistry.
+    """
+
+    def setUp(self):
+        self.app = create_app(
+            {
+                "TESTING": True,
+                "DATABASE_PATH": ":memory:",
+                "SECRET_KEY": "test-key-modular-jobs",
+            }
+        )
+        self.session = get_session()
+        self.entry_repo = EntryRepository(self.session)
+        self.job_repo = JobRepository(self.session)
+
+    def tearDown(self):
+        close_session()
+
+    def test_custom_handler_registration(self):
+        """JobRegistry allows registering custom job handlers for new job types."""
+        from yafr.workers.jobs import BaseJobHandler, JobRegistry
+
+        class CustomExportJobHandler(BaseJobHandler):
+            job_types = ("custom-export",)
+
+            def execute(self, job, session):
+                return {
+                    "success": True,
+                    "status": "completed",
+                    "message": f"Exported {job.subject}",
+                }
+
+        registry = JobRegistry()
+        custom_handler = CustomExportJobHandler()
+        registry.register(custom_handler)
+
+        self.assertIs(registry.get_handler("custom-export"), custom_handler)
+
+        # Test execution via JobExecutor with custom registry
+        job = self.job_repo.enqueue_job(job="custom-export", subject="data.json")
+        executor = JobExecutor(
+            session=self.session, registry=registry, auto_refresh_sources=False
+        )
+        result = executor.process_one(session=self.session)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["message"], "Exported data.json")
 
 
 if __name__ == "__main__":

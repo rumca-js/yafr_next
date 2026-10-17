@@ -110,12 +110,16 @@ class TestEntryBuilder(unittest.TestCase):
         self.assertIn("IP address", reason_ip)
 
         # Onion URL rejected
-        allowed_onion, reason_onion = builder.can_build("http://expyuz5wqqfdgah56trldsd.onion/test")
+        allowed_onion, reason_onion = builder.can_build(
+            "http://expyuz5wqqfdgah56trldsd.onion/test"
+        )
         self.assertFalse(allowed_onion)
         self.assertIn("Onion", reason_onion)
 
         # Allowed when ignored via override
-        allowed_override, _ = builder.can_build("http://192.168.1.1/info", ignore_policy=True)
+        allowed_override, _ = builder.can_build(
+            "http://192.168.1.1/info", ignore_policy=True
+        )
         self.assertTrue(allowed_override)
 
     def test_can_build_policy_dead_links(self):
@@ -234,7 +238,9 @@ class TestEntryBuilder(unittest.TestCase):
         # Check tags persisted
         tag_records = (
             self.session.execute(
-                select(EntryCompactedTags.tag).where(EntryCompactedTags.entry_id == entry.id)
+                select(EntryCompactedTags.tag).where(
+                    EntryCompactedTags.entry_id == entry.id
+                )
             )
             .scalars()
             .all()

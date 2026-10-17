@@ -29,6 +29,9 @@ elif hasattr(webtoolkit, "utils") and "utils" not in sys.modules:
 
 logger = logging.getLogger(__name__)
 
+# Standard background job identifier for link metadata update
+JOB_LINK_UPDATE_DATA = "link-update-data"
+
 
 class WebToolsWrapper:
     """
@@ -324,6 +327,179 @@ class WebToolsWrapper:
 
         return []
 
+    def get_title(self) -> Optional[str]:
+        """
+        Fetches and returns the page or media title using BaseUrl or RemoteUrl.
+        Extracts title via underlying handler.get_title(), response object, or HTML parsing.
+        """
+        # Ensure response is fetched
+        self.get_response()
+
+        if self.url_handler and hasattr(self.url_handler, "get_title"):
+            try:
+                title = self.url_handler.get_title()
+                if title and isinstance(title, str) and title.strip():
+                    return title.strip()
+            except Exception as exc:
+                logger.debug("url_handler.get_title() failed: %s", exc)
+
+        # Fallback to response object if available
+        resp = self.get_response()
+        if resp and hasattr(resp, "get_title"):
+            try:
+                title = resp.get_title()
+                if title and isinstance(title, str) and title.strip():
+                    return title.strip()
+            except Exception:
+                pass
+
+        # Fallback: HTML parsing via BeautifulSoup if text is available
+        text = self.get_text()
+        if text:
+            try:
+                from bs4 import BeautifulSoup
+
+                soup = BeautifulSoup(text, "html.parser")
+                if soup.title and soup.title.string:
+                    t = soup.title.string.strip()
+                    if t:
+                        return t
+                og_title = soup.find("meta", property="og:title")
+                if og_title and og_title.get("content"):
+                    return str(og_title["content"]).strip()
+            except Exception:
+                pass
+
+        return None
+
+    def get_description(self) -> Optional[str]:
+        """
+        Fetches and returns the page or media description using BaseUrl or RemoteUrl.
+        Extracts description via underlying handler.get_description(), response object, or HTML parsing.
+        """
+        # Ensure response is fetched
+        self.get_response()
+
+        if self.url_handler and hasattr(self.url_handler, "get_description"):
+            try:
+                desc = self.url_handler.get_description()
+                if desc and isinstance(desc, str) and desc.strip():
+                    return desc.strip()
+            except Exception as exc:
+                logger.debug("url_handler.get_description() failed: %s", exc)
+
+        # Fallback to response object if available
+        resp = self.get_response()
+        if resp and hasattr(resp, "get_description"):
+            try:
+                desc = resp.get_description()
+                if desc and isinstance(desc, str) and desc.strip():
+                    return desc.strip()
+            except Exception:
+                pass
+
+        # Fallback: HTML parsing via BeautifulSoup if text is available
+        text = self.get_text()
+        if text:
+            try:
+                from bs4 import BeautifulSoup
+
+                soup = BeautifulSoup(text, "html.parser")
+                meta_desc = soup.find("meta", attrs={"name": "description"})
+                if meta_desc and meta_desc.get("content"):
+                    return str(meta_desc["content"]).strip()
+                og_desc = soup.find("meta", property="og:description")
+                if og_desc and og_desc.get("content"):
+                    return str(og_desc["content"]).strip()
+            except Exception:
+                pass
+
+        return None
+
+    def get_author(self) -> Optional[str]:
+        """
+        Retrieves author/channel from handler or metadata if available.
+        """
+        self.get_response()
+        if self.url_handler and hasattr(self.url_handler, "get_author"):
+            try:
+                author = self.url_handler.get_author()
+                if author:
+                    return str(author).strip()
+            except Exception:
+                pass
+        return None
+
+    def get_language(self) -> Optional[str]:
+        """
+        Retrieves language code from handler or metadata if available.
+        """
+        self.get_response()
+        if self.url_handler and hasattr(self.url_handler, "get_language"):
+            try:
+                lang = self.url_handler.get_language()
+                if lang:
+                    return str(lang).strip()
+            except Exception:
+                pass
+        return None
+
+    def get_thumbnail(self) -> Optional[str]:
+        """
+        Retrieves thumbnail URL from handler or metadata if available.
+        """
+        self.get_response()
+        if self.url_handler and hasattr(self.url_handler, "get_thumbnail"):
+            try:
+                thumb = self.url_handler.get_thumbnail()
+                if thumb:
+                    return str(thumb).strip()
+            except Exception:
+                pass
+        return None
+
+    @classmethod
+    def fetch_title(
+        cls,
+        url: str,
+        remote_server_location: Optional[str] = None,
+        session: Optional[Session] = None,
+        use_remote: Optional[bool] = None,
+        timeout_s: Optional[int] = None,
+    ) -> Optional[str]:
+        """
+        Convenience class method to fetch page title in one call.
+        """
+        wrapper = cls(
+            url=url,
+            remote_server_location=remote_server_location,
+            session=session,
+            use_remote=use_remote,
+            timeout_s=timeout_s,
+        )
+        return wrapper.get_title()
+
+    @classmethod
+    def fetch_description(
+        cls,
+        url: str,
+        remote_server_location: Optional[str] = None,
+        session: Optional[Session] = None,
+        use_remote: Optional[bool] = None,
+        timeout_s: Optional[int] = None,
+    ) -> Optional[str]:
+        """
+        Convenience class method to fetch page description in one call.
+        """
+        wrapper = cls(
+            url=url,
+            remote_server_location=remote_server_location,
+            session=session,
+            use_remote=use_remote,
+            timeout_s=timeout_s,
+        )
+        return wrapper.get_description()
+
     @classmethod
     def fetch_text(
         cls,
@@ -443,4 +619,6 @@ WebToolsService = WebToolsWrapper
 create_url = WebToolsWrapper.create_url
 fetch_text = WebToolsWrapper.fetch_text
 fetch_response = WebToolsWrapper.fetch_response
+fetch_title = WebToolsWrapper.fetch_title
+fetch_description = WebToolsWrapper.fetch_description
 check_remote_status = WebToolsWrapper.check_remote_status

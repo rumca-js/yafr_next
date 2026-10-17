@@ -15,20 +15,24 @@ import time
 from typing import Any, Callable, Dict, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from linkarchivetools.model.definitions import (
-    BackgroundJob,
-    LinkDataModel,
-    SearchHistory,
-    SourcesTable,
-)
-from yafr.db.config_repository import ConfigRepository
-from yafr.db.entry_repository import EntryRepository
-from yafr.db.history_repository import HistoryRepository
+from linkarchivetools.model.definitions import BackgroundJob
 from yafr.db.job_repository import JobRepository
 from yafr.db.logging_repository import LoggingRepository
 from yafr.db.session import close_session, get_session
 from yafr.db.source_repository import SourceRepository
 from yafr.services.source_service import SourceService
+from yafr.workers.jobs import (
+    JOB_CLEANUP,
+    JOB_LINK_UPDATE_DATA,
+    JOB_PROCESS_SOURCE,
+    BaseJobHandler,
+    CleanupJobHandler,
+    GenericJobHandler,
+    JobRegistry,
+    LinkUpdateDataJobHandler,
+    ProcessSourceJobHandler,
+    default_registry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +40,7 @@ logger = logging.getLogger(__name__)
 class JobExecutor:
     """
     Dispatcher and sequential execution runner for background tasks.
+    Delegates task execution to modular handlers in yafr.workers.jobs.
     """
 
     def __init__(
@@ -43,6 +48,7 @@ class JobExecutor:
         session: Optional[Session] = None,
         max_retries: int = 3,
         auto_refresh_sources: bool = True,
+        registry: Optional[JobRegistry] = None,
     ) -> None:
         """
         Initializes the JobExecutor.
@@ -50,10 +56,12 @@ class JobExecutor:
         :param session: Optional active database session
         :param max_retries: Maximum failures allowed before a job is disabled
         :param auto_refresh_sources: Whether to check and refresh outdated sources when queue is empty
+        :param registry: Optional JobRegistry instance for custom handler registration
         """
         self._session = session
         self.max_retries = max_retries
         self.auto_refresh_sources = auto_refresh_sources
+        self.registry = registry or default_registry
 
     def _get_session(self, session: Optional[Session] = None) -> Session:
         return session or self._session or get_session()
@@ -96,15 +104,8 @@ class JobExecutor:
         )
 
         try:
-            # 2. Dispatch to matching handler based on job type
-            if job_type in ("process-source", "JOB_PROCESS_SOURCE"):
-                result = self._handle_process_source(job, sess)
-            elif job_type in ("link-update-data", "JOB_LINK_UPDATE_DATA"):
-                result = self._handle_link_update_data(job, sess)
-            elif job_type in ("cleanup", "JOB_CLEANUP"):
-                result = self._handle_cleanup(job, sess)
-            else:
-                result = self._handle_unknown_job(job, sess)
+            # 2. Dispatch to matching handler via modular job registry
+            result = self.registry.dispatch(job, sess)
 
             success = result.get("success", False)
 
@@ -177,96 +178,31 @@ class JobExecutor:
         self, job: BackgroundJob, session: Session
     ) -> Dict[str, Any]:
         """
-        Executes a process-source task (fetching and parsing an RSS/Email feed).
+        Executes a process-source task (delegating to ProcessSourceJobHandler).
         """
-        subject = (job.subject or "").strip()
-        source_repo = SourceRepository(session)
-        source: Optional[SourcesTable] = None
-
-        if subject.isdigit():
-            source = source_repo.get_by_id(int(subject))
-        elif subject:
-            source = source_repo.get_by_url(subject)
-
-        if not source:
-            return {
-                "success": False,
-                "status": "error",
-                "error": f"Source not found for subject: '{subject}'",
-            }
-
-        if not source.enabled:
-            logger.info(
-                "Source #%d (%s) is disabled. Skipping fetch.", source.id, source.title
-            )
-            return {
-                "success": True,
-                "status": "skipped",
-                "message": f"Source #{source.id} is disabled, skipped.",
-            }
-
-        return SourceService.fetch_source(source.id, session=session)
+        return self.registry.get_handler("process-source").execute(job, session)
 
     def _handle_link_update_data(
         self, job: BackgroundJob, session: Session
     ) -> Dict[str, Any]:
         """
-        Executes a link-update-data task (refreshing entry metadata and timestamps).
+        Executes a link-update-data task (delegating to LinkUpdateDataJobHandler).
         """
-        subject = (job.subject or "").strip()
-        entry_repo = EntryRepository(session)
-        entry: Optional[LinkDataModel] = None
-
-        if subject.isdigit():
-            entry = entry_repo.get_by_id(int(subject))
-        elif subject:
-            entry = entry_repo.get_by_link(subject)
-
-        if not entry:
-            return {
-                "success": False,
-                "status": "error",
-                "error": f"Entry not found for subject: '{subject}'",
-            }
-
-        entry.date_update_last = datetime.now(timezone.utc)
-        session.commit()
-
-        return {
-            "success": True,
-            "status": "completed",
-            "message": f"Updated entry #{entry.id} metadata timestamp.",
-        }
+        return self.registry.get_handler("link-update-data").execute(job, session)
 
     def _handle_cleanup(self, job: BackgroundJob, session: Session) -> Dict[str, Any]:
         """
-        Executes a cleanup task (enforcing storage retention quotas).
+        Executes a cleanup task (delegating to CleanupJobHandler).
         """
-        config_repo = ConfigRepository(session)
-        history_repo = HistoryRepository(session)
-        config = config_repo.get_config()
-
-        max_searches = config.max_number_of_user_search or 300
-        history_repo.apply_storage_limit(SearchHistory, SearchHistory.id, max_searches)
-
-        return {
-            "success": True,
-            "status": "completed",
-            "message": f"Enforced storage caps: max_searches={max_searches}.",
-        }
+        return self.registry.get_handler("cleanup").execute(job, session)
 
     def _handle_unknown_job(
         self, job: BackgroundJob, session: Session
     ) -> Dict[str, Any]:
         """
-        Fallback handler for unhandled or custom job types.
+        Fallback handler for unhandled or custom job types (delegating to GenericJobHandler).
         """
-        logger.info("Executing custom/generic job type: '%s'", job.job)
-        return {
-            "success": True,
-            "status": "completed",
-            "message": f"Processed generic task: {job.job}",
-        }
+        return GenericJobHandler().execute(job, session)
 
     def _process_outdated_source(self, session: Session) -> Optional[Dict[str, Any]]:
         """
@@ -295,6 +231,49 @@ class JobExecutor:
             "status": res.get("status", "completed"),
             "message": res.get("message") or res.get("error", "Source refreshed."),
         }
+
+    def enqueue_outdated_jobs(
+        self, session: Optional[Session] = None, max_age_seconds: int = 3600
+    ) -> int:
+        """
+        Enqueues outdated source refresh jobs into the backgroundjob queue when idle.
+
+        :param session: Optional active database session
+        :param max_age_seconds: Maximum age before a source is considered outdated (default: 3600s = 1 hour)
+        :return: Count of newly enqueued jobs
+        """
+        sess = self._get_session(session)
+        source_repo = SourceRepository(sess)
+        job_repo = JobRepository(sess)
+
+        outdated = source_repo.get_outdated_sources(max_age_seconds=max_age_seconds)
+        enqueued_count = 0
+
+        for src in outdated:
+            existing = sess.execute(
+                select(BackgroundJob.id).where(
+                    BackgroundJob.job.in_(("process-source", "JOB_PROCESS_SOURCE")),
+                    BackgroundJob.subject == str(src.id),
+                    BackgroundJob.enabled == True,
+                )
+            ).scalar_one_or_none()
+
+            if not existing:
+                job_repo.enqueue_job(
+                    job="process-source",
+                    subject=str(src.id),
+                    priority=5,
+                    enabled=True,
+                )
+                enqueued_count += 1
+
+        if enqueued_count > 0:
+            sess.commit()
+            logger.info(
+                "Enqueued %d outdated source job(s) into queue.", enqueued_count
+            )
+
+        return enqueued_count
 
     def run_loop(
         self,
@@ -328,6 +307,15 @@ class JobExecutor:
                 if max_jobs is not None and executed_count >= max_jobs:
                     break
             else:
+                # If auto_refresh_sources is enabled and queue is empty, enqueue outdated jobs
+                if self.auto_refresh_sources:
+                    try:
+                        self.enqueue_outdated_jobs(self._get_session())
+                    except Exception as err:
+                        logger.debug(
+                            "Failed checking outdated jobs in run_loop: %s", err
+                        )
+
                 # No pending job or work: wait before next poll
                 if stop_event:
                     stop_event.wait(interval)
