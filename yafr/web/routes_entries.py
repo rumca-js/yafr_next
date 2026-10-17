@@ -12,6 +12,7 @@ from sqlalchemy import select
 from linkarchivetools.model.definitions import LinkDataModel, SocialData, SourcesTable
 from yafr.db import ConfigRepository, EntryRepository, HistoryRepository, get_session
 from yafr.search import FilterRegistry, SearchParser, SearchQueryBuilder
+from yafr.services.entry_builder import EntryBuilder
 
 logger = logging.getLogger(__name__)
 entries_bp = Blueprint("entries", __name__)
@@ -328,7 +329,8 @@ def entry_create_screen():
             except ValueError:
                 pass
 
-        new_entry = entry_repo.add_entry(
+        builder = EntryBuilder(session=session)
+        new_entry = builder.build_and_save(
             link=link,
             title=title,
             description=description,
@@ -336,9 +338,15 @@ def entry_create_screen():
             language=language,
             thumbnail=thumbnail,
             date_published=date_published,
+            tags=tags,
+            ignore_policy=True,
+            commit=True,
         )
-        if tags:
-            entry_repo.set_tags(new_entry.id, tags)
+        if not new_entry:
+            flash(builder.last_rejection_reason or "Failed to create entry.", "danger")
+            return render_template(
+                "entries/edit.html", entry=None, tags=tags, is_new=True
+            )
 
         flash("Entry created successfully.", "success")
         return redirect(url_for("entries.entry_detail_view", id=new_entry.id))

@@ -24,6 +24,7 @@ from linkarchivetools.model.definitions import (
 )
 from yafr.db.session import get_session, session_scope
 from yafr.db.source_repository import SourceRepository
+from yafr.services.entry_builder import EntryBuilder
 from yafr.services.webtools_service import WebToolsWrapper
 
 logger = logging.getLogger(__name__)
@@ -300,45 +301,37 @@ class SourceService:
                 "status": "error",
             }
 
+        builder = EntryBuilder(session=session)
         entries_added = 0
-        now_utc = datetime.now(timezone.utc)
 
         for item in raw_entries:
             link = (item.get("link") or "").strip()
             if not link:
                 continue
 
-            # Prevent duplicate links in LinkDataModel
-            exists = session.execute(
-                select(LinkDataModel.id).where(LinkDataModel.link == link).limit(1)
-            ).scalar_one_or_none()
+            title = item.get("title")
+            desc = item.get("description")
+            thumb = item.get("thumbnail")
+            author = item.get("author")
+            album = item.get("album")
+            lang = item.get("language")
+            date_published = item.get("date_published")
+            tags = item.get("tags") if isinstance(item.get("tags"), list) else None
 
-            if exists is None:
-                title = item.get("title") or link
-                desc = item.get("description") or ""
-                thumb = item.get("thumbnail") or source.favicon
-                author = item.get("author") or ""
-                album = item.get("album") or ""
-                lang = item.get("language") or source.language or ""
-                date_published = item.get("date_published") or now_utc
-
-                entry = LinkDataModel(
-                    link=link,
-                    source_url=source.url,
-                    source_id=source.id,
-                    title=title,
-                    description=desc,
-                    thumbnail=thumb,
-                    author=author,
-                    album=album,
-                    language=lang,
-                    date_published=date_published,
-                    date_created=now_utc,
-                    date_update_last=now_utc,
-                    status_code=200,
-                    manual_status_code=200,
-                )
-                session.add(entry)
+            created_entry = builder.build_and_save(
+                link=link,
+                title=title,
+                description=desc,
+                source=source,
+                thumbnail=thumb,
+                author=author,
+                album=album,
+                language=lang,
+                date_published=date_published,
+                tags=tags,
+                commit=False,
+            )
+            if created_entry is not None:
                 entries_added += 1
 
         session.flush()

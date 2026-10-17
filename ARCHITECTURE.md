@@ -35,6 +35,7 @@ flowchart TD
 
         subgraph Service ["Domain & Business Service Layer"]
             EntrySvc["Entry Service"]
+            EntryBuilder["EntryBuilder (Ingestion & Validation Pipeline)"]
             SourceSvc["Source Service"]
             SearchSvc["Search & Translation Engine"]
             RuleSvc["Entry Rules Engine (Regex)"]
@@ -249,7 +250,9 @@ stateDiagram-v2
     CheckJobs --> CheckSources: No pending background jobs
     CheckSources --> FetchSource: Source outdated (>1h) & enabled
     FetchSource --> CompareHashes: Fetch RSS / IMAP
-    CompareHashes --> InsertEntries: Hash changed -> insert new entries
+    CompareHashes --> BuildEntries: Hash changed -> parse items
+    BuildEntries --> FilterEntries: EntryBuilder validates policy & entry rules
+    FilterEntries --> InsertEntries: Allowed items persisted + tags inherited
     CompareHashes --> SkipEntries: Hash unchanged -> mark read
     InsertEntries --> UpdateOperational: Update date_fetched, clear consecutive_errors
     SkipEntries --> UpdateOperational
@@ -272,6 +275,8 @@ stateDiagram-v2
    - **Operational Hash Check**:
      - Computes binary SHA-256 hashes (`page_hash` and `body_hash`).
      - If hashes match `sourceoperationaldata`, payload parsing is skipped, saving compute and disk I/O.
+   - **EntryBuilder Ingestion**:
+     - All parsed feed items are processed through `EntryBuilder` to enforce link acceptance rules, sanitize URLs, match `EntryRules` regexes, and inherit source properties.
    - **Error Tracking**:
      - If fetch succeeds: `consecutive_errors` reset to `0`, `date_successful_fetch` updated.
      - If fetch fails: `consecutive_errors` incremented by `1`.
@@ -314,7 +319,60 @@ The presentation layer supports dynamic configuration switching via user prefere
 
 ---
 
-### 3.6 Offline Resilience & Graceful Degradation
+### 3.6 Entry Ingestion & Builder Pipeline (`EntryBuilder`)
+
+To prevent raw URLs, malformed schemes, and blocked links from polluting `linkdatamodel`, all candidate links from workers, feeds, background jobs, or manual user input pass through a centralized **`EntryBuilder`** domain service before persistence.
+
+```mermaid
+flowchart TD
+    Raw["Raw Candidate Link\n(From RSS, Email, Job, or Manual UI)"]
+    Sanitize["1. URL Sanitization\n(strip whitespace, trailing slashes, UrlLocation.get_clean())"]
+    Policy["2. Configuration Policy Check\n(accept_domain_links, accept_ip_links, accept_onion_links, accept_dead_links)"]
+    Rules["3. EntryRules Evaluation (Regex)\n(block, trust, auto_tag, apply_age_limit)"]
+    Inherit["4. Source Property Inheritance\n(language, age, auto_tag, source favicon fallback)"]
+    Dedup["5. De-duplication Check\n(linkdatamodel.link unique check)"]
+    Persist[("6. Atomic Persistence\n(linkdatamodel + entrycompactedtags)")]
+    Drop["Discard / Log Blocked"]
+
+    Raw --> Sanitize --> Policy
+    Policy -->|Policy Reject| Drop
+    Policy -->|Policy Accepted| Rules
+    Rules -->|Rule Blocked| Drop
+    Rules -->|Rule Allowed| Inherit
+    Inherit --> Dedup
+    Dedup -->|Duplicate| Drop
+    Dedup -->|New Entry| Persist
+```
+
+#### Ingestion Pipeline Responsibilities:
+1. **URL Sanitization & Normalization**:
+   - Strips leading and trailing whitespace.
+   - Cleans URL using `webtoolkit.UrlLocation.get_clean()`.
+   - Removes superfluous trailing slashes.
+   - Honors `prefer_https_links` (upgrading scheme) and `prefer_non_www_links` (stripping `www.`).
+2. **Ingestion Policy Validation (`ConfigurationEntry`)**:
+   - Rejects non-domain URLs unless `accept_non_domain_links` is enabled.
+   - Evaluates `accept_ip_links` for IPv4/IPv6 addresses.
+   - Evaluates `accept_onion_links` for Tor darknet addresses.
+   - Evaluates `accept_dead_links` if status indicates an HTTP error.
+3. **Regex Rule Matching (`EntryRules`)**:
+   - Evaluates active regex patterns configured in `entryrules`:
+     - **Block**: Rejects link and aborts ingestion.
+     - **Trust**: Marks entry as active/trusted (`manual_status_code = 200`).
+     - **Auto-tag**: Appends configured tags to the entry.
+     - **Age limit**: Applies `apply_age_limit` if positive.
+4. **Source Attribute Inheritance**:
+   - If an entry originates from a `SourcesTable` source:
+     - Inherits `source.language` if entry language is undefined.
+     - Inherits `source.age` if entry age is undefined.
+     - Automatically attaches `source.auto_tag` to entry tags.
+     - Falls back to `source.favicon` if entry thumbnail is missing.
+5. **De-duplication**:
+   - Verifies whether canonical link already exists in `linkdatamodel` to guarantee idempotency across feed updates.
+
+---
+
+### 3.7 Offline Resilience & Graceful Degradation
 
 1. **Local Independence**:
    - Searching, filtering, viewing details, editing tags, voting, and reading visit history require **no internet connection**.
