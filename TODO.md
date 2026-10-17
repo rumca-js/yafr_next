@@ -31,3 +31,5 @@
 Webtools service. Do not fall back on response, nor to use beautiful soup. Either BaseUrl/RemoteUrl works, or not.
   Please. I think webtools_service.py needs to be updated. Also PROJECT.md should be clear about it. webtoolkit was
   introduced to provide parsing and reading of titles and descriptions.
+
+ - source detail fetch update should create a job link-update
