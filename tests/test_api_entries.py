@@ -189,6 +189,90 @@ class TestApiEntries(unittest.TestCase):
         self.assertEqual(len(transitions), 1)
         self.assertEqual(transitions[0].entry_to_id, e2.id)
 
+    def test_api_validate_link(self):
+        """POST /api/entries/validate-link returns validation status and clickable propositions."""
+        # Test URL with whitespace, www, and trailing slash
+        res = self.client.post(
+            "/api/entries/validate-link",
+            json={"url": "  http://www.example.org/article/  "},
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()["data"]
+        self.assertEqual(data["url"], "http://www.example.org/article/")
+        self.assertTrue(data["is_web_link"])
+        self.assertFalse(data["is_duplicate"])
+        self.assertTrue(data["allowed"])
+
+        # Check propositions
+        prop_labels = [p["label"] for p in data["propositions"]]
+        self.assertIn("Cleaned URL", prop_labels)
+
+        # Test duplicate URL check
+        res_dup = self.client.post(
+            "/api/entries/validate-link",
+            json={"url": "https://example.com/api-test"},
+        )
+        self.assertEqual(res_dup.status_code, 200)
+        self.assertTrue(res_dup.get_json()["data"]["is_duplicate"])
+
+    def test_api_quick_add_success(self):
+        """POST /api/entries/quick-add creates entry and optionally marks read-later."""
+        res = self.client.post(
+            "/api/entries/quick-add",
+            json={
+                "link": "https://example.com/quick-created",
+                "title": "Quick Created",
+                "tags": ["quick", "test"],
+                "read_later": True,
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()["data"]
+        self.assertIsNotNone(data["entry_id"])
+        self.assertEqual(data["link"], "https://example.com/quick-created")
+
+        # Verify entry in DB
+        created = self.repo.get_by_id(data["entry_id"])
+        self.assertIsNotNone(created)
+        self.assertEqual(created.title, "Quick Created")
+
+        # Verify tags
+        tags = self.repo.get_tags(created.id)
+        self.assertIn("quick", tags)
+        self.assertIn("test", tags)
+
+        # Verify read-later
+        history = HistoryRepository(self.session)
+        self.assertTrue(history.is_read_later(created.id))
+
+    def test_api_batch_add_success(self):
+        """POST /api/entries/batch-add creates multiple entries and reports counts."""
+        links = [
+            "https://example.com/batch-1",
+            "https://example.com/batch-2",
+            "https://example.com/api-test",  # Duplicate of existing in setUp
+        ]
+        res = self.client.post(
+            "/api/entries/batch-add",
+            json={
+                "links": links,
+                "tags": ["batch-tag"],
+                "read_later": False,
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()["data"]
+        self.assertEqual(data["total_submitted"], 3)
+        self.assertEqual(data["added_count"], 2)
+        self.assertEqual(data["duplicate_count"], 1)
+
+        # Verify in DB
+        b1 = self.repo.get_by_link("https://example.com/batch-1")
+        b2 = self.repo.get_by_link("https://example.com/batch-2")
+        self.assertIsNotNone(b1)
+        self.assertIsNotNone(b2)
+        self.assertIn("batch-tag", self.repo.get_tags(b1.id))
+
 
 if __name__ == "__main__":
     unittest.main()

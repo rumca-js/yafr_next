@@ -88,7 +88,7 @@ class EntryBuilder:
                 return bool(val)
         return default
 
-    def sanitize_url(self, raw_url: str) -> str:
+    def sanitize_url(self, raw_url: Any) -> str:
         """
         Cleans and normalizes a candidate URL:
         - Strips leading and trailing whitespace.
@@ -97,10 +97,15 @@ class EntryBuilder:
         - Applies prefer_non_www_links (removes leading www.).
         - Cleans URL paths and superfluous trailing slashes using webtoolkit.UrlLocation.
 
-        :param raw_url: Raw URL string
+        :param raw_url: Raw URL string or UrlLocation instance
         :return: Sanitized canonical URL string
         """
-        url = (raw_url or "").strip()
+        if raw_url is None:
+            return ""
+        if hasattr(raw_url, "url"):
+            url = str(raw_url.url or "").strip()
+        else:
+            url = str(raw_url).strip()
         if not url:
             return ""
 
@@ -126,7 +131,9 @@ class EntryBuilder:
 
         # Use webtoolkit.UrlLocation for canonical path cleaning
         cleaned = webtoolkit.UrlLocation(url).get_clean()
-        return cleaned or url
+        if cleaned:
+            return str(cleaned.url if hasattr(cleaned, "url") else cleaned)
+        return url
 
     def is_duplicate(self, url: str) -> bool:
         """
@@ -515,27 +522,34 @@ class EntryBuilder:
         if entry is None:
             return None
 
-        self.session.add(entry)
-        self.session.flush()
-
-        # Persist associated tags
-        if resolved_tags:
-            for tag_str in resolved_tags:
-                self.session.add(
-                    EntryCompactedTags(entry_id=entry.id, tag=tag_str)
-                )
+        try:
+            self.session.add(entry)
             self.session.flush()
 
-        # Handle auto_add_to_read_later from source
-        if source and getattr(source, "auto_add_to_read_later", False):
-            from linkarchivetools.model.definitions import ReadLater
-            self.session.add(ReadLater(entry_id=entry.id, user_id=1))
-            self.session.flush()
+            # Persist associated tags
+            if resolved_tags:
+                for tag_str in resolved_tags:
+                    self.session.add(
+                        EntryCompactedTags(entry_id=entry.id, tag=tag_str)
+                    )
+                self.session.flush()
 
-        if commit:
-            self.session.commit()
+            # Handle auto_add_to_read_later from source
+            if source and getattr(source, "auto_add_to_read_later", False):
+                from linkarchivetools.model.definitions import ReadLater
+                self.session.add(ReadLater(entry_id=entry.id, user_id=1))
+                self.session.flush()
 
-        return entry
+            if commit:
+                self.session.commit()
+
+            return entry
+        except Exception as err:
+            self.session.rollback()
+            err_msg = f"Database error: {err}"
+            self.last_rejection_reason = err_msg
+            logger.error("Failed to persist entry '%s': %s", link, err)
+            return None
 
     @classmethod
     def create(

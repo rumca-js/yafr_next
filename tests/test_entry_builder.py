@@ -26,7 +26,7 @@ from yafr.db import (
 )
 from yafr.services.entry_builder import EntryBuilder, EntryLinkBuilder
 from yafr.services.source_service import SourceService
-from yafr.services.webtools_service import PageResponseObject
+from webtoolkit.response import PageResponseObject
 
 
 class TestEntryBuilder(unittest.TestCase):

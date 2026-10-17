@@ -6,8 +6,12 @@ visit recording, status code changes, and tags updates.
 """
 
 import logging
+import re
 from flask import Blueprint, request
+import webtoolkit
+from linkarchivetools.model.definitions import ReadLater
 from yafr.db import EntryRepository, HistoryRepository, get_session
+from yafr.services.entry_builder import EntryBuilder
 from yafr.web.shared import api_response
 
 logger = logging.getLogger(__name__)
@@ -301,3 +305,221 @@ def batch_delete():
         data={"deleted_count": deleted_count},
         message=f"Deleted {deleted_count} entries",
     )
+
+
+@api_entries_bp.route("/validate-link", methods=["POST"])
+def validate_link():
+    """
+    Validates a candidate URL, checks duplicate status, policy allowance,
+    and returns clickable suggestions/propositions (cleaned, no-slash, no-www, https).
+    """
+    payload = request.get_json(silent=True) or {}
+    raw_url = payload.get("url", "")
+    trimmed_url = (raw_url or "").strip()
+
+    if not trimmed_url:
+        return api_response(
+            success=False,
+            error="URL link cannot be empty",
+            status_code=400,
+        )
+
+    session = get_session()
+    builder = EntryBuilder(session=session)
+
+    # 1. Web link validation
+    loc = webtoolkit.UrlLocation(trimmed_url)
+    is_web_link = (
+        loc.is_web_link()
+        or trimmed_url.startswith("http://")
+        or trimmed_url.startswith("https://")
+        or loc.is_onion()
+    )
+
+    cleaned = builder.sanitize_url(trimmed_url)
+    clean_loc = webtoolkit.UrlLocation(cleaned)
+
+    # 2. Duplicate and policy check
+    is_duplicate = builder.is_duplicate(cleaned)
+    allowed, rejection_reason = builder.can_build(
+        cleaned,
+        check_duplicates=False,  # We report duplicate separately
+        ignore_policy=False,
+    )
+
+    # 3. Generate Clickable Propositions / Suggestions
+    propositions = []
+
+    # Proposition: Cleaned version
+    if cleaned and cleaned != trimmed_url:
+        propositions.append({"label": "Cleaned URL", "url": cleaned})
+
+    # Proposition: Without trailing slash
+    if trimmed_url.endswith("/") and not loc.is_domain():
+        no_slash = trimmed_url.rstrip("/")
+        if no_slash != cleaned and no_slash != trimmed_url:
+            propositions.append({"label": "Remove trailing /", "url": no_slash})
+
+    # Proposition: Without 'www.'
+    if "://www." in trimmed_url.lower():
+        no_www = re.sub(r"://www\.", "://", trimmed_url, flags=re.IGNORECASE)
+        if no_www != cleaned and not any(p["url"] == no_www for p in propositions):
+            propositions.append({"label": "Remove 'www.'", "url": no_www})
+
+    # Proposition: Upgrade to HTTPS
+    if trimmed_url.lower().startswith("http://") and not loc.is_onion():
+        https_url = "https://" + trimmed_url[7:]
+        if https_url != cleaned and not any(p["url"] == https_url for p in propositions):
+            propositions.append({"label": "Upgrade to HTTPS", "url": https_url})
+
+    return api_response(
+        success=True,
+        data={
+            "url": trimmed_url,
+            "cleaned_url": cleaned,
+            "is_web_link": is_web_link,
+            "is_duplicate": is_duplicate,
+            "allowed": allowed,
+            "rejection_reason": rejection_reason,
+            "propositions": propositions,
+        },
+        message="URL validated.",
+    )
+
+
+@api_entries_bp.route("/quick-add", methods=["POST"])
+def quick_add():
+    """
+    Fast JSON creation of a single link entry with optional tags, title, description,
+    and read_later flag.
+    """
+    payload = request.get_json(silent=True) or {}
+    raw_link = payload.get("link", "")
+    link = (raw_link or "").strip()
+
+    if not link:
+        return api_response(
+            success=False, error="URL link is required", status_code=400
+        )
+
+    title = payload.get("title") or None
+    description = payload.get("description") or None
+    author = payload.get("author") or None
+    language = payload.get("language") or None
+    thumbnail = payload.get("thumbnail") or None
+    tags = payload.get("tags") or []
+    read_later = bool(payload.get("read_later", False))
+    ignore_policy = bool(payload.get("ignore_policy", False))
+
+    session = get_session()
+    builder = EntryBuilder(session=session)
+
+    try:
+        entry = builder.build_and_save(
+            link=link,
+            title=title,
+            description=description,
+            author=author,
+            language=language,
+            thumbnail=thumbnail,
+            tags=tags,
+            check_duplicates=True,
+            ignore_policy=ignore_policy,
+            commit=False,
+        )
+
+        if entry is None:
+            reason = builder.last_rejection_reason or "Failed to add entry."
+            return api_response(success=False, error=reason, status_code=400)
+
+        if read_later:
+            session.add(ReadLater(entry_id=entry.id, user_id=1))
+
+        session.commit()
+
+        return api_response(
+            success=True,
+            data={
+                "entry_id": entry.id,
+                "link": entry.link,
+                "title": entry.title,
+            },
+            message="Entry created successfully.",
+        )
+    except Exception as exc:
+        session.rollback()
+        logger.error("Failed to add entry: %s", exc)
+        return api_response(
+            success=False, error=f"Database error: {exc}", status_code=500
+        )
+
+
+@api_entries_bp.route("/batch-add", methods=["POST"])
+def batch_add():
+    """
+    Batch ingestion of up to 200 links.
+    """
+    payload = request.get_json(silent=True) or {}
+    raw_links = payload.get("links", [])
+    default_tags = payload.get("tags", [])
+    read_later = bool(payload.get("read_later", False))
+    ignore_policy = bool(payload.get("ignore_policy", False))
+
+    if not isinstance(raw_links, list) or not raw_links:
+        return api_response(
+            success=False, error="Empty or invalid links list", status_code=400
+        )
+
+    # Input limit: max 200 links per field/batch (as defined in PROJECT.md)
+    candidate_links = raw_links[:200]
+
+    session = get_session()
+    builder = EntryBuilder(session=session)
+
+    added_entries = []
+    duplicate_count = 0
+    rejected_count = 0
+
+    try:
+        for raw in candidate_links:
+            cleaned_str = (raw or "").strip()
+            if not cleaned_str:
+                continue
+
+            entry = builder.build_and_save(
+                link=cleaned_str,
+                tags=default_tags,
+                check_duplicates=True,
+                ignore_policy=ignore_policy,
+                commit=False,
+            )
+
+            if entry is not None:
+                if read_later:
+                    session.add(ReadLater(entry_id=entry.id, user_id=1))
+                added_entries.append({"id": entry.id, "link": entry.link, "title": entry.title})
+            else:
+                if "Duplicate" in (builder.last_rejection_reason or ""):
+                    duplicate_count += 1
+                else:
+                    rejected_count += 1
+
+        session.commit()
+
+        return api_response(
+            success=True,
+            data={
+                "total_submitted": len(candidate_links),
+                "added_count": len(added_entries),
+                "duplicate_count": duplicate_count,
+                "rejected_count": rejected_count,
+                "entries": added_entries,
+            },
+            message=f"Added {len(added_entries)} entries ({duplicate_count} duplicates skipped, {rejected_count} rejected).",
+        )
+    except Exception as exc:
+        session.rollback()
+        logger.error("Failed during batch add: %s", exc)
+        return api_response(
+            success=False, error=f"Database error: {exc}", status_code=500
+        )

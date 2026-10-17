@@ -370,6 +370,17 @@ flowchart TD
 5. **De-duplication**:
    - Verifies whether canonical link already exists in `linkdatamodel` to guarantee idempotency across feed updates.
 
+#### 3.6.1 Interactive Link Addition UI & Propositions
+Users can add links manually via the Quick Add modal accessible from the navbar and `EntriesListView`, or via `EntryEditScreen` (`/entries/new`):
+- **Live Link Validation (`/api/entries/validate-link`)**: As the user enters a link, client-side input triggers debounced validation.
+- **Clickable Proposition Chips**: Suggests normalized versions that replace the input on click:
+  - Cleaned canonical URL (`webtoolkit.UrlLocation.get_clean()`).
+  - Version without superfluous trailing slash.
+  - Version with `www.` stripped.
+  - Version upgraded to `https://`.
+- **Policy & Rule Feedback**: Real-time feedback if a link violates domain, IP, Tor onion, or dead link policies, with an option to override for manual additions. Alerts if a link is blocked by `EntryRules`.
+- **Batch Link Ingestion (`/api/entries/batch-add`)**: Textarea allowing pasting up to 200 URLs at once, sanitized and de-duplicated through `EntryBuilder`.
+
 ---
 
 ### 3.7 Offline Resilience & Graceful Degradation

@@ -190,17 +190,76 @@ Following the project requirement to **"prefer having small server functions tha
   ```
 - **Offline Capable**: Yes.
 
-#### `POST /api/entries/mark-all-read`
-- **Purpose**: Marks all entries in current search filter as read/visited.
+#### `POST /api/entries/validate-link`
+- **Purpose**: Validates a candidate URL against `UrlLocation` and `EntryBuilder`, checking duplicate status, policy allowance, and generating clickable propositions (clean URL, no-slash, no-www, https).
 - **Request Body**:
   ```json
-  { "entry_ids": [10, 11, 15, 22] }
+  { "url": "https://www.example.com/item/" }
   ```
 - **Response**:
   ```json
   {
     "success": true,
-    "updated_count": 4
+    "url": "https://www.example.com/item/",
+    "cleaned_url": "https://example.com/item",
+    "is_web_link": true,
+    "is_duplicate": false,
+    "allowed": true,
+    "rejection_reason": null,
+    "propositions": [
+      { "label": "Cleaned URL", "url": "https://example.com/item" },
+      { "label": "Remove trailing /", "url": "https://www.example.com/item" },
+      { "label": "Remove www", "url": "https://example.com/item/" }
+    ]
+  }
+  ```
+- **Offline Capable**: Yes.
+
+#### `POST /api/entries/quick-add`
+- **Purpose**: Fast AJAX creation of a single link entry with optional metadata.
+- **Request Body**:
+  ```json
+  {
+    "link": "https://example.com/article",
+    "title": "Article Title",
+    "tags": ["tech", "news"],
+    "description": "Optional notes",
+    "read_later": true,
+    "ignore_policy": false
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "entry_id": 42,
+    "link": "https://example.com/article",
+    "title": "Article Title",
+    "message": "Entry created successfully."
+  }
+  ```
+- **Offline Capable**: Yes.
+
+#### `POST /api/entries/batch-add`
+- **Purpose**: Batch insertion of up to 200 links via textarea submission.
+- **Request Body**:
+  ```json
+  {
+    "links": ["https://example.com/link1", "https://example.com/link2"],
+    "tags": ["batch", "imported"],
+    "read_later": false,
+    "ignore_policy": false
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "total_submitted": 2,
+    "added_count": 2,
+    "duplicate_count": 0,
+    "rejected_count": 0,
+    "entries": [{ "id": 43, "link": "https://example.com/link1" }]
   }
   ```
 - **Offline Capable**: Yes.

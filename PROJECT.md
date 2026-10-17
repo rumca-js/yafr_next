@@ -19,6 +19,9 @@ Provide docker script?
 I have many instances of app in mind. Running app on a different port should be relatively easy.
 It should listen to connections from LAN
 
+ - App can be started with 'make run'
+ - Tests can be started with 'make test'
+
 # Files
 Files describing project:
  - ARCHITECTURE.md
@@ -75,6 +78,8 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - Propose clickable suggestions that replaces input
  - webtoolkit.UrlLocation().get_clean() returns cleaned version of link (proposition to the user)
  - link should not have trailing / character (propose version without it)
+ - propose link version without www if it has in it (e.g. https://www.example.com -> https://example.com)
+ - propose HTTPS link version if http is used
  - if it is not web link webtoolkit.UrlLocation().is_web_link() display error
  - if ConfigurationEntry does not allow specific type of of link display error, but allow such links to be inserte by
   the user
@@ -83,7 +88,7 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
   - each view should provide title. Entry detail should display title, source detail should display title. Lists should display list title, with search words (if there are any)
 
  - Any input should be limited. Do not allow infinite amount of inputs. For example entries can be inserted by a textfield, but only allow 200 to ba added by one field at a time
- - propose link version without www if it has in it
+ - Link addition UI provides a quick modal from navbar and EntriesListView with live validation, clickable proposition buttons, and a batch ingestion tab for up to 200 URLs.
 
 # Views
  - EntriesListView - default 'search' google like view

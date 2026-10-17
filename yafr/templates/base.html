@@ -29,6 +29,9 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Quick Add Link Modal -->
+  {% include "components/quick_add_modal.html" %}
+
   <!-- Footer -->
   <footer class="py-3 text-center text-muted border-top mt-auto small">
     <div class="container">
@@ -45,6 +48,7 @@
   <!-- Local Application JS -->
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   <script src="{{ url_for('static', filename='js/entries.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/quick_add.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

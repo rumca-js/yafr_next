@@ -329,21 +329,28 @@ def entry_create_screen():
             except ValueError:
                 pass
 
-        builder = EntryBuilder(session=session)
-        new_entry = builder.build_and_save(
-            link=link,
-            title=title,
-            description=description,
-            author=author,
-            language=language,
-            thumbnail=thumbnail,
-            date_published=date_published,
-            tags=tags,
-            ignore_policy=True,
-            commit=True,
-        )
-        if not new_entry:
-            flash(builder.last_rejection_reason or "Failed to create entry.", "danger")
+        try:
+            builder = EntryBuilder(session=session)
+            new_entry = builder.build_and_save(
+                link=link,
+                title=title,
+                description=description,
+                author=author,
+                language=language,
+                thumbnail=thumbnail,
+                date_published=date_published,
+                tags=tags,
+                ignore_policy=True,
+                commit=True,
+            )
+            if not new_entry:
+                flash(builder.last_rejection_reason or "Failed to create entry.", "danger")
+                return render_template(
+                    "entries/edit.html", entry=None, tags=tags, is_new=True
+                )
+        except Exception as exc:
+            session.rollback()
+            flash(f"Database error: {exc}", "danger")
             return render_template(
                 "entries/edit.html", entry=None, tags=tags, is_new=True
             )

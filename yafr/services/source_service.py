@@ -346,6 +346,7 @@ class SourceService:
             or 0
         )
 
+        now_utc = datetime.now(timezone.utc)
         op_data.page_hash = page_hash
         op_data.body_hash = body_hash
         op_data.number_of_entries = total_source_entries
