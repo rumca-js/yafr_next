@@ -8,7 +8,7 @@ def main():
         description="Run process_jobs.py and run.py concurrently."
     )
     parser.add_argument(
-        "--host", type=str, required=True, help="Host address for run.py"
+        "--host", type=str, default="0.0.0.0", help="Host address for run.py"
     )
     parser.add_argument(
         "--port", type=int, required=True, help="Port number for run.py"
