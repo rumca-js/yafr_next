@@ -21,6 +21,7 @@ from yafr.db.job_repository import JobRepository
 from yafr.db.logging_repository import LoggingRepository
 from yafr.db.session import close_session, get_session
 from yafr.db.source_repository import SourceRepository
+from yafr.db.system_operation_repository import SystemOperationRepository
 from yafr.services.source_service import SourceService
 from yafr.workers.jobs import (
     JOB_CLEANUP,
@@ -432,17 +433,35 @@ class JobExecutor:
         """
         Continuously processes jobs one at a time.
 
+        Records a liveness heartbeat into the systemoperation table on every
+        iteration so the web UI can detect whether the worker is running or dead
+        (a timestamp older than 10 minutes indicates the worker is dead).
+
         :param interval: Sleep interval in seconds when idle
         :param max_jobs: Optional maximum jobs to execute before stopping
         :param stop_event: Threading event to signal graceful termination
         :param callback: Optional callable invoked with task result after each job
         :return: Total number of jobs executed
         """
+        import threading as _threading
+
         executed_count = 0
+        thread_id = str(_threading.current_thread().ident)
 
         while True:
             if stop_event and stop_event.is_set():
                 break
+
+            # Record worker heartbeat so the UI can detect liveness
+            try:
+                op_repo = SystemOperationRepository(self._get_session())
+                op_repo.record_heartbeat(
+                    status=True,
+                    thread_id=thread_id,
+                    check_type="worker",
+                )
+            except Exception as hb_err:
+                logger.debug("Failed to record worker heartbeat: %s", hb_err)
 
             result = self.process_one()
 

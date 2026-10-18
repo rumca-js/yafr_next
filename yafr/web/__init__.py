@@ -12,6 +12,7 @@ from yafr.web.api import (
     api_logs_bp,
     api_search_views_bp,
     api_sources_bp,
+    api_status_bp,
 )
 from yafr.web.routes_config import config_bp
 from yafr.web.routes_database import database_bp
@@ -40,6 +41,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(api_sources_bp)
     app.register_blueprint(api_database_bp)
     app.register_blueprint(api_config_bp)
+    app.register_blueprint(api_status_bp)
 
     @app.context_processor
     def inject_shared_context():

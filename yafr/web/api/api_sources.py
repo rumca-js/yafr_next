@@ -7,7 +7,7 @@ batch deletion, batch refresh, and progress status tracking.
 
 import logging
 from flask import Blueprint, jsonify, request
-from yafr.db import SourceRepository, get_session
+from yafr.db import JobRepository, SourceRepository, get_session
 from yafr.services import SourceService
 from yafr.web.shared import api_response
 
@@ -18,7 +18,11 @@ api_sources_bp = Blueprint("api_sources", __name__, url_prefix="/api/sources")
 @api_sources_bp.route("/<int:source_id>/fetch", methods=["POST"])
 def fetch_source(source_id: int):
     """
-    Triggers an immediate fetch/refresh of a specific source.
+    Enqueues a process-source background job for the given source ID.
+
+    The job will be picked up by the background worker (process_jobs.py / JobExecutor)
+    on its next loop cycle. This avoids doing a blocking synchronous HTTP fetch
+    inside the web request.
     """
     session = get_session()
     repo = SourceRepository(session)
@@ -26,14 +30,29 @@ def fetch_source(source_id: int):
     if not source:
         return api_response(success=False, error="Source not found", status_code=404)
 
-    result = SourceService.fetch_source(source_id, session=session)
+    job_repo = JobRepository(session)
+    job = job_repo.enqueue_job(
+        job="process-source",
+        subject=str(source_id),
+        priority=1,
+        enabled=True,
+    )
+    session.commit()
+
+    logger.info(
+        "Enqueued process-source job #%d for source %d (%s)",
+        job.id,
+        source_id,
+        source.title or source.url,
+    )
+
     return jsonify(
         {
-            "success": result.get("success", False),
+            "success": True,
             "source_id": source_id,
-            "status": result.get("status", "completed"),
-            "message": result.get("message") or result.get("error", "Fetch completed"),
-            "entries_added": result.get("entries_added", 0),
+            "job_id": job.id,
+            "status": "queued",
+            "message": f"Source fetch queued as background job #{job.id}. The worker will process it shortly.",
         }
     )
 

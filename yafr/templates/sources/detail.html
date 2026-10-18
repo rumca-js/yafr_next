@@ -393,7 +393,7 @@
 <script src="{{ url_for('static', filename='js/sources.js') }}"></script>
 <script>
   $(document).ready(function() {
-    // Detail page fetch button
+    // Detail page fetch button — enqueues a process-source background job
     $('#detail-fetch-btn').on('click', function() {
       const btn = $(this);
       const icon = $('#detail-fetch-icon');
@@ -410,16 +410,20 @@
           icon.removeClass('spin');
           btn.prop('disabled', false);
           if (resp.success) {
-            alert(resp.message || 'Fetch completed successfully.');
-            location.reload();
+            // Job enqueued — show message without blocking or reloading
+            btn.text('Queued');
+            btn.prepend('<i class="bi bi-check-circle me-1"></i>');
+            setTimeout(function() {
+              btn.html('<i class="bi bi-arrow-clockwise me-1" id="detail-fetch-icon"></i>Fetch / Update');
+            }, 3000);
           } else {
-            alert('Fetch error: ' + (resp.message || resp.error || 'Unknown error'));
+            alert('Could not enqueue fetch: ' + (resp.message || resp.error || 'Unknown error'));
           }
         },
         error: function(xhr) {
           icon.removeClass('spin');
           btn.prop('disabled', false);
-          alert('Failed to trigger fetch: ' + (xhr.responseJSON?.error || xhr.statusText));
+          alert('Failed to queue fetch: ' + (xhr.responseJSON?.error || xhr.statusText));
         }
       });
     });

@@ -191,7 +191,7 @@ $(document).ready(function() {
     });
   });
 
-  // Single Source Fetch Trigger
+  // Single Source Fetch Trigger — enqueues a process-source background job
   $(document).on('click', '.btn-fetch-single', function() {
     const btn = $(this);
     const icon = btn.find('i');
@@ -208,9 +208,13 @@ $(document).ready(function() {
         btn.prop('disabled', false);
         icon.removeClass('spin');
         if (resp.success) {
-          location.reload();
+          // Job enqueued — brief visual confirmation, no blocking reload
+          icon.removeClass().addClass('bi bi-check-circle text-success');
+          setTimeout(function() {
+            icon.removeClass().addClass('bi bi-arrow-clockwise');
+          }, 2500);
         } else {
-          alert('Fetch error: ' + (resp.message || resp.error || 'Failed to fetch source'));
+          alert('Could not queue fetch: ' + (resp.message || resp.error || 'Failed to enqueue source fetch'));
         }
       },
       error: function(xhr) {

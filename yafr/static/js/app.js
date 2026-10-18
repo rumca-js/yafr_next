@@ -100,4 +100,37 @@ document.addEventListener("DOMContentLoaded", function () {
 
   updateWebToolsStatus();
   window.addEventListener("online", updateWebToolsStatus);
+
+  // 4. Background Worker Liveness Monitor (polls /api/status/worker every 60s)
+  const workerBadge = document.getElementById("worker-badge");
+
+  function updateWorkerStatus() {
+    if (!workerBadge) return;
+
+    fetch("/api/status/worker")
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (data.is_active) {
+          workerBadge.className = "badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill";
+          var ago = data.age_seconds !== null ? " (" + data.age_seconds + "s ago)" : "";
+          workerBadge.innerHTML = '<i class="bi bi-cpu me-1"></i>Worker';
+          workerBadge.title = "Background worker is active" + ago + ". Thread: " + (data.thread_id || "?");
+        } else {
+          workerBadge.className = "badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded-pill";
+          workerBadge.innerHTML = '<i class="bi bi-cpu me-1"></i>Worker Dead';
+          workerBadge.title = data.message || "Background worker is dead or not running.";
+        }
+      })
+      .catch(function () {
+        workerBadge.className = "badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 rounded-pill";
+        workerBadge.innerHTML = '<i class="bi bi-cpu me-1"></i>Worker ?';
+        workerBadge.title = "Could not contact worker status endpoint.";
+      });
+  }
+
+  updateWorkerStatus();
+  setInterval(updateWorkerStatus, 60000);
 });

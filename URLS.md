@@ -710,19 +710,37 @@ Following the project requirement to **"prefer having small server functions tha
 
 ### 2.8 System Status API (`/api/status`)
 
-#### `GET /api/status/health`
-- **Purpose**: System health monitor. Reports worker loop status, network availability, and badge alert counts.
-- **Response**:
+#### `GET /api/status/worker`
+- **Purpose**: Reports background worker liveness by reading the `systemoperation` table. The table holds exactly **one row**; the worker upserts it on every loop cycle with `status=True` and the current UTC timestamp. If the row is missing, `status=False`, or the timestamp is older than **10 minutes**, the worker is considered dead.
+- **Response (active)**:
   ```json
   {
-    "status": "healthy",
-    "worker_running": true,
-    "network_online": true,
-    "badges": {
-      "sources_outdated": 3,
-      "sources_errors": 1,
-      "jobs_errors": 0
-    }
+    "is_active": true,
+    "status": true,
+    "status_label": "active",
+    "last_written": "2026-10-18T18:05:00+00:00",
+    "age_seconds": 42.1,
+    "age_minutes": 0.7,
+    "thread_id": "140234567890",
+    "check_type": "worker",
+    "message": "Worker is active and ok (last heartbeat 42.1s ago).",
+    "max_age_seconds": 600
+  }
+  ```
+- **Response (dead)**:
+  ```json
+  {
+    "is_active": false,
+    "status": false,
+    "status_label": "dead",
+    "last_written": "2026-10-18T17:50:00+00:00",
+    "age_seconds": 930.5,
+    "age_minutes": 15.5,
+    "thread_id": "140234567890",
+    "check_type": "worker",
+    "message": "Worker heartbeat is older than 10 minutes (15.5 min ago, limit: 10 min). Worker is dead.",
+    "max_age_seconds": 600
   }
   ```
 - **Offline Capable**: Yes.
+

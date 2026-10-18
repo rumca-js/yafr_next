@@ -1,12 +1,14 @@
 # TODO
 
  - [x] running pytest seems to be failing. is ARCHITECTURE.md wrong that we are using pytest? (Resolved: standard library unittest is used via `make test` / `python -m unittest discover tests`; ARCHITECTURE.md and FILES.md updated, unused conftest.py removed)
+ - [x] source detail fetch update should create a job process-source
  - [x] entry list screen
  - [x] sources list screen
  - [x] database screen
  - [x] configuration screen
  - [x] jobs screen
  - [x] logs screen
+ - [x] search views - ability to add / edit search views (SearchView editor in Configuration: name, default, priority, filter_statement, order_by)
  - [x] **Entry Detail & Edit Screens**: Implement `EntryDetailView` (`/entries/<id>`) with media preview, voting, tags editing, read-later toggle, status controls, and `EntryEditScreen` (`/entries/new`, `/entries/<id>/edit`).
  - [x] link source process job
  - [x] **Link Update Data Background Job**: `JOB_LINK_UPDATE_DATA = "link-update-data"` enqueued when links are added by user, worker thread fetches BaseUrl/RemoteUrl title and description and updates entry metadata.
@@ -18,7 +20,6 @@
 - [ ] **UI Polish & Bug Fixes**: Address initial search filter layout and clarify worker/online status indicators (from `BUGS.md`).
  - link validation / sanitization - is it fully implemented?
  - link batch operations (delete?)
- - [x] search views - ability to add / edit search views (SearchView editor in Configuration: name, default, priority, filter_statement, order_by)
  - provide docker compose script and Dockerfile
  - On hold - introduce system operations table to mark that threads are working
  - if database file is replaced, how thread should be restarted?
@@ -29,4 +30,3 @@
  - source list: order by errors
  - user should be able to trigger link update
 
- - source detail fetch update should create a job process-source

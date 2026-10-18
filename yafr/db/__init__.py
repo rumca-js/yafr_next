@@ -18,6 +18,7 @@ from yafr.db.session import (
     session_scope,
 )
 from yafr.db.source_repository import SourceRepository
+from yafr.db.system_operation_repository import SystemOperationRepository
 
 __all__ = [
     "init_db",
@@ -34,4 +35,5 @@ __all__ = [
     "RulesRepository",
     "SearchViewRepository",
     "LoggingRepository",
+    "SystemOperationRepository",
 ]

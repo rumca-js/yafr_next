@@ -10,6 +10,7 @@ from yafr.web.api.api_jobs import api_jobs_bp
 from yafr.web.api.api_logs import api_logs_bp
 from yafr.web.api.api_search_views import api_search_views_bp
 from yafr.web.api.api_sources import api_sources_bp
+from yafr.web.api.api_status import api_status_bp
 
 __all__ = [
     "api_config_bp",
@@ -20,4 +21,5 @@ __all__ = [
     "api_logs_bp",
     "api_search_views_bp",
     "api_sources_bp",
+    "api_status_bp",
 ]
