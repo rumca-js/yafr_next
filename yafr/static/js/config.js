@@ -174,4 +174,200 @@ document.addEventListener("DOMContentLoaded", function () {
     runWebtoolsTest();
   }
 
+  // --- Tab Hash Preservation ---
+  const currentHash = window.location.hash;
+  if (currentHash) {
+    const targetTabBtn = document.querySelector('button[data-bs-target="' + currentHash + '"]');
+    if (targetTabBtn) {
+      const tabInstance = new bootstrap.Tab(targetTabBtn);
+      tabInstance.show();
+    }
+  }
+
+  const tabButtons = document.querySelectorAll('#configTabs button[data-bs-toggle="tab"]');
+  tabButtons.forEach(function (btn) {
+    btn.addEventListener('shown.bs.tab', function (e) {
+      const target = e.target.getAttribute('data-bs-target');
+      if (history.replaceState) {
+        history.replaceState(null, null, target);
+      } else {
+        window.location.hash = target;
+      }
+    });
+  });
+
+  // --- Search Views Modal & CRUD Handling ---
+  const svModalEl = document.getElementById("searchViewModal");
+  const svModal = svModalEl ? new bootstrap.Modal(svModalEl) : null;
+  const deleteSvModalEl = document.getElementById("deleteSearchViewModal");
+  const deleteSvModal = deleteSvModalEl ? new bootstrap.Modal(deleteSvModalEl) : null;
+
+  // 1. Add Search View Button
+  const btnAddSv = document.getElementById("btn-add-searchview");
+  if (btnAddSv) {
+    btnAddSv.addEventListener("click", function () {
+      const form = document.getElementById("search-view-form");
+      if (form) form.reset();
+      document.getElementById("sv_id").value = "";
+      document.getElementById("sv-modal-title").textContent = "New Search View";
+      document.getElementById("sv_priority").value = "0";
+      document.getElementById("sv_default").checked = false;
+      if (svModal) svModal.show();
+    });
+  }
+
+  // 2. Edit Search View Button
+  document.querySelectorAll(".btn-edit-searchview").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const d = this.dataset;
+      document.getElementById("sv_id").value = d.id || "";
+      document.getElementById("sv_name").value = d.name || "";
+      document.getElementById("sv_priority").value = d.priority || "0";
+      document.getElementById("sv_filter_statement").value = d.filterStatement || "";
+      document.getElementById("sv_order_by").value = d.orderBy || "";
+      document.getElementById("sv_default").checked = (d.default === "1");
+      document.getElementById("sv-modal-title").textContent = "Edit Search View: " + (d.name || "");
+      if (svModal) svModal.show();
+    });
+  });
+
+  // 3. Save Search View (AJAX with Form Fallback)
+  const svForm = document.getElementById("search-view-form");
+  if (svForm) {
+    svForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const saveBtn = document.getElementById("btn-save-searchview");
+      const originalText = saveBtn.innerHTML;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving...';
+
+      const viewId = document.getElementById("sv_id").value.trim();
+      const payload = {
+        name: document.getElementById("sv_name").value.trim(),
+        default: document.getElementById("sv_default").checked,
+        priority: parseInt(document.getElementById("sv_priority").value, 10) || 0,
+        filter_statement: document.getElementById("sv_filter_statement").value.trim(),
+        order_by: document.getElementById("sv_order_by").value.trim()
+      };
+
+      const endpoint = viewId ? ("/api/search-views/" + viewId) : "/api/search-views";
+
+      $.ajax({
+        url: endpoint,
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify(payload),
+        success: function (data) {
+          if (data.success) {
+            if (svModal) svModal.hide();
+            showToast(data.message || "Search view saved.", "success");
+            setTimeout(function () {
+              window.location.hash = "#tab-searchviews";
+              window.location.reload();
+            }, 500);
+          } else {
+            showToast(data.error || "Failed to save search view.", "danger");
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+          }
+        },
+        error: function (xhr) {
+          let err = "Network error while saving search view.";
+          if (xhr.responseJSON && xhr.responseJSON.error) {
+            err = xhr.responseJSON.error;
+          }
+          showToast(err, "danger");
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = originalText;
+        }
+      });
+    });
+  }
+
+  // 4. Set Default Search View (AJAX)
+  document.querySelectorAll(".btn-default-searchview").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const viewId = this.dataset.id;
+      if (!viewId) return;
+
+      const originalHtml = this.innerHTML;
+      this.disabled = true;
+      this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+
+      $.ajax({
+        url: "/api/search-views/" + viewId + "/set-default",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({}),
+        success: function (data) {
+          if (data.success) {
+            showToast(data.message || "Default search view updated.", "success");
+            setTimeout(function () {
+              window.location.hash = "#tab-searchviews";
+              window.location.reload();
+            }, 500);
+          } else {
+            showToast(data.error || "Failed to set default.", "danger");
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+          }
+        },
+        error: function () {
+          showToast("Network error while updating default view.", "danger");
+          btn.disabled = false;
+          btn.innerHTML = originalHtml;
+        }
+      });
+    });
+  });
+
+  // 5. Delete Search View Modal Trigger
+  document.querySelectorAll(".btn-delete-searchview").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const viewId = this.dataset.id;
+      const viewName = this.dataset.name || "this search view";
+      document.getElementById("delete_sv_id").value = viewId;
+      document.getElementById("delete-sv-name").textContent = viewName;
+      if (deleteSvModal) deleteSvModal.show();
+    });
+  });
+
+  // 6. Confirm Delete Search View (AJAX)
+  const confirmDeleteSvBtn = document.getElementById("confirm-delete-sv-btn");
+  if (confirmDeleteSvBtn) {
+    confirmDeleteSvBtn.addEventListener("click", function () {
+      const viewId = document.getElementById("delete_sv_id").value;
+      if (!viewId) return;
+
+      this.disabled = true;
+      this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Deleting...';
+
+      $.ajax({
+        url: "/api/search-views/" + viewId,
+        method: "DELETE",
+        contentType: "application/json",
+        data: JSON.stringify({}),
+        success: function (data) {
+          if (data.success) {
+            if (deleteSvModal) deleteSvModal.hide();
+            showToast("Search view deleted.", "success");
+            setTimeout(function () {
+              window.location.hash = "#tab-searchviews";
+              window.location.reload();
+            }, 500);
+          } else {
+            showToast(data.error || "Failed to delete search view.", "danger");
+            confirmDeleteSvBtn.disabled = false;
+            confirmDeleteSvBtn.innerHTML = '<i class="bi bi-trash me-1"></i>Confirm Delete';
+          }
+        },
+        error: function () {
+          showToast("Network error while deleting search view.", "danger");
+          confirmDeleteSvBtn.disabled = false;
+          confirmDeleteSvBtn.innerHTML = '<i class="bi bi-trash me-1"></i>Confirm Delete';
+        }
+      });
+    });
+  }
+
 });

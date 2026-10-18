@@ -118,6 +118,11 @@
             </button>
           </li>
           <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill px-3" id="tab-searchviews-btn" data-bs-toggle="tab" data-bs-target="#tab-searchviews" type="button" role="tab" aria-selected="false">
+              <i class="bi bi-funnel me-1"></i>Search Views
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
             <button class="nav-link rounded-pill px-3" id="tab-general-btn" data-bs-toggle="tab" data-bs-target="#tab-general" type="button" role="tab" aria-selected="false">
               <i class="bi bi-sliders me-1"></i>General & Instance
             </button>
@@ -385,6 +390,11 @@
                     <input type="number" class="form-control shadow-sm" id="sources_refresh_period" name="sources_refresh_period" min="60" max="864000" value="{{ config.sources_refresh_period or 3600 }}" required>
                     <div class="form-text">Minimum duration before an RSS source is marked outdated for auto-refresh (default: 3600s = 1 hour).</div>
                   </div>
+                  <div class="col-12 col-md-6">
+                    <label for="number_of_update_entries" class="form-label fw-semibold">Idle Entry Updates Limit</label>
+                    <input type="number" class="form-control shadow-sm" id="number_of_update_entries" name="number_of_update_entries" min="0" max="1000" value="{{ config.number_of_update_entries if config.number_of_update_entries is not none else 10 }}">
+                    <div class="form-text">Max number of update jobs added when the queue is idle, prioritizing oldest date_update_last (default: 10).</div>
+                  </div>
                 </div>
 
                 <div class="row g-3">
@@ -522,6 +532,102 @@
             </div>
           </div>
 
+          <!-- TAB 6: Search Views Management -->
+          <div class="tab-pane fade" id="tab-searchviews" role="tabpanel">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
+                  <div>
+                    <h5 class="fw-bold mb-1 d-flex align-items-center gap-2">
+                      <i class="bi bi-funnel text-primary"></i>Custom Search Views
+                      <span class="badge bg-secondary rounded-pill font-monospace fs-6">{{ search_views|length }}</span>
+                    </h5>
+                    <p class="text-muted small mb-0">Configure custom saved search views with query filters and ordering criteria.</p>
+                  </div>
+                  <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm" id="btn-add-searchview">
+                    <i class="bi bi-plus-lg me-1"></i>New Search View
+                  </button>
+                </div>
+
+                {% if search_views %}
+                  <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th scope="col" style="min-width: 180px;">Name</th>
+                          <th scope="col" class="text-center" style="width: 100px;">Priority</th>
+                          <th scope="col">Filter Statement</th>
+                          <th scope="col">Order By</th>
+                          <th scope="col" class="text-end" style="min-width: 160px;">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="searchviews-table-body">
+                        {% for sv in search_views %}
+                          <tr id="searchview-row-{{ sv.id }}">
+                            <td>
+                              <div class="fw-semibold text-break">{{ sv.name }}</div>
+                              {% if sv.default %}
+                                <span class="badge bg-success rounded-pill mt-1"><i class="bi bi-check-circle-fill me-1"></i>Default</span>
+                              {% endif %}
+                            </td>
+                            <td class="text-center">
+                              <span class="badge bg-light text-dark border font-monospace">{{ sv.priority }}</span>
+                            </td>
+                            <td>
+                              {% if sv.filter_statement %}
+                                <code class="text-break">{{ sv.filter_statement }}</code>
+                              {% else %}
+                                <span class="text-muted small fst-italic">None (all entries)</span>
+                              {% endif %}
+                            </td>
+                            <td>
+                              {% if sv.order_by %}
+                                <code class="text-break">{{ sv.order_by }}</code>
+                              {% else %}
+                                <span class="text-muted small fst-italic">Default</span>
+                              {% endif %}
+                            </td>
+                            <td class="text-end text-nowrap">
+                              {% if not sv.default %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 btn-default-searchview" data-id="{{ sv.id }}" title="Set as default">
+                                  <i class="bi bi-star me-1"></i>Default
+                                </button>
+                              {% endif %}
+                              <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2 py-1 btn-edit-searchview ms-1"
+                                data-id="{{ sv.id }}"
+                                data-name="{{ sv.name }}"
+                                data-default="{{ 1 if sv.default else 0 }}"
+                                data-priority="{{ sv.priority }}"
+                                data-filter-statement="{{ sv.filter_statement or '' }}"
+                                data-order-by="{{ sv.order_by or '' }}"
+                                title="Edit search view">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                              </button>
+                              <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 btn-delete-searchview ms-1"
+                                data-id="{{ sv.id }}"
+                                data-name="{{ sv.name }}"
+                                title="Delete search view">
+                                <i class="bi bi-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="text-center py-5 text-muted">
+                    <i class="bi bi-funnel fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                    <p class="mb-2">No search views configured.</p>
+                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" onclick="document.getElementById('btn-add-searchview').click();">
+                      <i class="bi bi-plus-lg me-1"></i>Create your first Search View
+                    </button>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Sticky Action Bar -->
@@ -544,6 +650,95 @@
     </div>
   </div>
 
+</div>
+
+<!-- Search View Editor Modal -->
+<div class="modal fade" id="searchViewModal" tabindex="-1" aria-labelledby="searchViewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <form id="search-view-form" method="POST" action="{{ url_for('config.save_search_view') }}">
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title fw-bold d-flex align-items-center gap-2" id="searchViewModalLabel">
+            <i class="bi bi-funnel text-primary"></i><span id="sv-modal-title">New Search View</span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-3">
+          <input type="hidden" id="sv_id" name="id" value="">
+
+          <!-- Name -->
+          <div class="mb-3">
+            <label for="sv_name" class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control shadow-sm" id="sv_name" name="name" required maxlength="500" placeholder="e.g. Bookmarks by creation">
+            <div class="form-text">Display title for this search view in dropdowns and navigation.</div>
+          </div>
+
+          <!-- Priority -->
+          <div class="mb-3">
+            <label for="sv_priority" class="form-label fw-semibold">Priority</label>
+            <input type="number" class="form-control shadow-sm" id="sv_priority" name="priority" value="0">
+            <div class="form-text">Integer sort priority. Lower numbers appear earlier in lists.</div>
+          </div>
+
+          <!-- Filter Statement -->
+          <div class="mb-3">
+            <label for="sv_filter_statement" class="form-label fw-semibold">Filter Statement</label>
+            <input type="text" class="form-control font-monospace shadow-sm" id="sv_filter_statement" name="filter_statement" placeholder="e.g. tag=python bookmarked=True">
+            <div class="form-text">Same syntax as main search (e.g. <code>tag=news</code>, <code>title=python</code>, <code>bookmarked=True</code>, <code>status=active</code>, <code>-author=bot</code>).</div>
+          </div>
+
+          <!-- Order By -->
+          <div class="mb-3">
+            <label for="sv_order_by" class="form-label fw-semibold">Order By</label>
+            <input type="text" class="form-control font-monospace shadow-sm" id="sv_order_by" name="order_by" placeholder="e.g. -date_published, -page_rating, link">
+            <div class="form-text">Ordering criteria (e.g. <code>-date_published</code>, <code>-date_created, link</code>, <code>votes</code>, <code>visits</code>). Prefix with <code>-</code> for descending.</div>
+          </div>
+
+          <!-- Default Toggle -->
+          <div class="form-check form-switch card p-3 border shadow-sm">
+            <input class="form-check-input ms-0 me-3" type="checkbox" role="switch" id="sv_default" name="default">
+            <label class="form-check-label fw-semibold" for="sv_default">
+              Set as Default Search View
+              <div class="text-muted small fw-normal">Makes this search view the default active filter for browsing.</div>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer border-top">
+          <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm" id="btn-save-searchview">
+            <i class="bi bi-check2 me-1"></i>Save Search View
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Search View Confirmation Modal -->
+<div class="modal fade" id="deleteSearchViewModal" tabindex="-1" aria-labelledby="deleteSearchViewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <form id="delete-searchview-form" method="POST" action="">
+        <div class="modal-header border-bottom-0">
+          <h5 class="modal-title fw-bold text-danger d-flex align-items-center gap-2" id="deleteSearchViewModalLabel">
+            <i class="bi bi-trash"></i>Delete Search View?
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body py-2">
+          <p>Are you sure you want to delete the search view <strong id="delete-sv-name"></strong>?</p>
+          <p class="text-muted small mb-0">This operation cannot be undone. Saved bookmarks and entries will NOT be affected.</p>
+        </div>
+        <div class="modal-footer border-top-0">
+          <input type="hidden" id="delete_sv_id" value="">
+          <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger btn-sm rounded-pill px-3" id="confirm-delete-sv-btn">
+            <i class="bi bi-trash me-1"></i>Confirm Delete
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Reset Defaults Confirmation Modal -->

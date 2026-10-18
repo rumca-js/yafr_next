@@ -213,8 +213,17 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
 
         except Exception as err:
             logger.warning(
-                "Error updating data for entry #%s (%s): %s", entry.id, entry.link, err
+                "Error updating data for entry #%s (%s): %s",
+                getattr(entry, "id", "?"),
+                getattr(entry, "link", "?"),
+                err,
             )
+            try:
+                if entry:
+                    entry.date_update_last = datetime.now(timezone.utc)
+                    session.commit()
+            except Exception:
+                pass
             return {
                 "success": False,
                 "status": "error",

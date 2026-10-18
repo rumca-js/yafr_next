@@ -170,6 +170,16 @@ class SearchQueryBuilder:
                 stmt = stmt.where(cond)
                 continue
 
+            # Bookmarked search
+            if field_name == "bookmarked":
+                val_lower = val.lower()
+                is_true = val_lower in ("true", "1", "yes")
+                cond = LinkDataModel.bookmarked == is_true
+                if clause.negated:
+                    cond = ~cond
+                stmt = stmt.where(cond)
+                continue
+
             # Standard string columns: title, description, link, author, language
             if hasattr(LinkDataModel, field_name):
                 column = getattr(LinkDataModel, field_name)
@@ -225,6 +235,21 @@ class SearchQueryBuilder:
             )
             order_applied = True
 
+        elif filter_id and filter_id.startswith("custom_"):
+            from yafr.search.filters import FilterRegistry
+            from yafr.search.parser import SearchParser
+
+            view = FilterRegistry.get_search_view(filter_id)
+            if view:
+                if view.filter_statement:
+                    parsed_custom = SearchParser.parse(view.filter_statement)
+                    stmt = cls._apply_clauses(stmt, parsed_custom.clauses)
+                if view.order_by:
+                    stmt = cls._apply_ordering(
+                        stmt, view.order_by, filter_order_applied=False
+                    )
+                    order_applied = True
+
         elif filter_id == "date_published" or not filter_id:
             stmt = stmt.order_by(
                 LinkDataModel.date_published.desc().nullslast(),
@@ -242,10 +267,10 @@ class SearchQueryBuilder:
         filter_order_applied: bool,
     ) -> Select:
         """
-        Applies explicit ordering directives from the search query (e.g. order:votes).
+        Applies explicit ordering directives from search query or custom search view.
         Overrides system filter ordering when specified.
         """
-        if not order_by:
+        if not order_by or not order_by.strip():
             if not filter_order_applied:
                 # Fallback ordering
                 stmt = stmt.order_by(
@@ -254,43 +279,93 @@ class SearchQueryBuilder:
                 )
             return stmt
 
-        normalized = order_by.lower().strip()
+        tokens = [t.strip() for t in order_by.split(",") if t.strip()]
+        if not tokens:
+            return stmt
 
-        # Clear existing filter ordering if explicit query order is specified
+        # Clear existing filter ordering if explicit order is specified
         stmt = stmt.order_by(None)
+        order_clauses = []
+        joined_social = False
 
-        if normalized == "votes":
-            return stmt.order_by(
-                LinkDataModel.page_rating_votes.desc(),
-                LinkDataModel.id.desc(),
-            )
-        elif normalized in ("published", "date_published"):
-            return stmt.order_by(
-                LinkDataModel.date_published.desc().nullslast(),
-                LinkDataModel.id.desc(),
-            )
-        elif normalized in ("created", "date_created"):
-            return stmt.order_by(
-                LinkDataModel.date_created.desc().nullslast(),
-                LinkDataModel.id.desc(),
-            )
-        elif normalized in ("visits", "visit_count"):
-            return stmt.order_by(
-                LinkDataModel.page_rating_visits.desc(),
-                LinkDataModel.id.desc(),
-            )
-        elif normalized in ("followers", "followers_count"):
-            stmt = stmt.outerjoin(SocialData, SocialData.entry_id == LinkDataModel.id)
-            return stmt.order_by(
-                SocialData.followers_count.desc().nullslast(),
-                LinkDataModel.id.desc(),
-            )
-        elif normalized == "stars":
-            stmt = stmt.outerjoin(SocialData, SocialData.entry_id == LinkDataModel.id)
-            return stmt.order_by(
-                SocialData.stars.desc().nullslast(),
-                LinkDataModel.id.desc(),
-            )
+        for token in tokens:
+            is_asc = token.startswith("+")
+            is_explicit_desc = token.startswith("-")
+            clean = token.lstrip("-+").strip().lower()
+
+            if clean in ("published", "date_published"):
+                order_clauses.append(
+                    LinkDataModel.date_published.asc().nullsfirst()
+                    if is_asc
+                    else LinkDataModel.date_published.desc().nullslast()
+                )
+            elif clean in ("created", "date_created"):
+                order_clauses.append(
+                    LinkDataModel.date_created.asc().nullsfirst()
+                    if is_asc
+                    else LinkDataModel.date_created.desc().nullslast()
+                )
+            elif clean in ("votes", "page_rating_votes"):
+                order_clauses.append(
+                    LinkDataModel.page_rating_votes.asc()
+                    if is_asc
+                    else LinkDataModel.page_rating_votes.desc()
+                )
+            elif clean in ("rating", "page_rating"):
+                order_clauses.append(
+                    LinkDataModel.page_rating.asc()
+                    if is_asc
+                    else LinkDataModel.page_rating.desc()
+                )
+            elif clean in ("visits", "page_rating_visits", "visit_count"):
+                order_clauses.append(
+                    LinkDataModel.page_rating_visits.asc()
+                    if is_asc
+                    else LinkDataModel.page_rating_visits.desc()
+                )
+            elif clean == "link":
+                order_clauses.append(
+                    LinkDataModel.link.desc()
+                    if is_explicit_desc
+                    else LinkDataModel.link.asc()
+                )
+            elif clean in ("followers", "followers_count"):
+                if not joined_social:
+                    stmt = stmt.outerjoin(
+                        SocialData, SocialData.entry_id == LinkDataModel.id
+                    )
+                    joined_social = True
+                order_clauses.append(
+                    SocialData.followers_count.asc().nullsfirst()
+                    if is_asc
+                    else SocialData.followers_count.desc().nullslast()
+                )
+            elif clean in ("stars", "socialdata__thumbs_up", "thumbs_up"):
+                if not joined_social:
+                    stmt = stmt.outerjoin(
+                        SocialData, SocialData.entry_id == LinkDataModel.id
+                    )
+                    joined_social = True
+                order_clauses.append(
+                    SocialData.stars.asc().nullsfirst()
+                    if is_asc
+                    else SocialData.stars.desc().nullslast()
+                )
+            elif clean in ("socialdata__view_count", "views"):
+                if not joined_social:
+                    stmt = stmt.outerjoin(
+                        SocialData, SocialData.entry_id == LinkDataModel.id
+                    )
+                    joined_social = True
+                order_clauses.append(
+                    SocialData.views.asc().nullsfirst()
+                    if is_asc
+                    else SocialData.views.desc().nullslast()
+                )
+
+        if order_clauses:
+            order_clauses.append(LinkDataModel.id.desc())
+            return stmt.order_by(*order_clauses)
 
         # Fallback to date_published
         return stmt.order_by(

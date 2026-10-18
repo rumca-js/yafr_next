@@ -13,9 +13,10 @@ import logging
 import threading
 import time
 from typing import Any, Callable, Dict, Optional
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
-from linkarchivetools.model.definitions import BackgroundJob
+from linkarchivetools.model.definitions import BackgroundJob, LinkDataModel
+from yafr.db.config_repository import ConfigRepository
 from yafr.db.job_repository import JobRepository
 from yafr.db.logging_repository import LoggingRepository
 from yafr.db.session import close_session, get_session
@@ -86,9 +87,12 @@ class JobExecutor:
         job = job_repo.get_next_pending_job()
 
         if job is None:
-            # Check for outdated sources if job queue is empty
+            # Check what should be done next when job queue is empty
             if self.auto_refresh_sources:
-                return self._process_outdated_source(sess)
+                res = self._process_outdated_source(sess)
+                if res:
+                    return res
+                return self._process_outdated_entry(sess)
             return None
 
         job_id = job.id
@@ -232,15 +236,65 @@ class JobExecutor:
             "message": res.get("message") or res.get("error", "Source refreshed."),
         }
 
-    def enqueue_outdated_jobs(
+    def _process_outdated_entry(self, session: Session) -> Optional[Dict[str, Any]]:
+        """
+        Checks for the oldest entry by date_update_last and refreshes its metadata,
+        updating date_update_last to 'now'.
+        """
+        config_repo = ConfigRepository(session)
+        config = config_repo.get_config()
+        limit = config.number_of_update_entries
+        if limit is not None and limit <= 0:
+            return None
+
+        stmt = (
+            select(LinkDataModel)
+            .where(LinkDataModel.link.isnot(None))
+            .where(LinkDataModel.link != "")
+            .order_by(
+                LinkDataModel.date_update_last.asc().nullsfirst(),
+                LinkDataModel.id.asc(),
+            )
+            .limit(1)
+        )
+        entry = session.execute(stmt).scalars().first()
+        if not entry:
+            return None
+
+        logger.info(
+            "Job queue empty. Auto-updating oldest entry #%d (%s)...",
+            entry.id,
+            entry.link,
+        )
+
+        handler = self.registry.get_handler("link-update-data")
+        dummy_job = BackgroundJob(
+            id=0,
+            job="link-update-data",
+            subject=str(entry.id),
+            priority=10,
+            enabled=True,
+        )
+        res = handler.execute(dummy_job, session)
+        return {
+            "processed": True,
+            "job_id": None,
+            "job_type": "entry-auto-update",
+            "subject": str(entry.id),
+            "success": res.get("success", False),
+            "status": res.get("status", "completed"),
+            "message": res.get("message") or res.get("error", "Entry updated."),
+        }
+
+    def enqueue_outdated_source_jobs(
         self, session: Optional[Session] = None, max_age_seconds: int = 3600
     ) -> int:
         """
-        Enqueues outdated source refresh jobs into the backgroundjob queue when idle.
+        Enqueues outdated source refresh jobs into the backgroundjob queue.
 
         :param session: Optional active database session
         :param max_age_seconds: Maximum age before a source is considered outdated (default: 3600s = 1 hour)
-        :return: Count of newly enqueued jobs
+        :return: Count of newly enqueued source refresh jobs
         """
         sess = self._get_session(session)
         source_repo = SourceRepository(sess)
@@ -274,6 +328,99 @@ class JobExecutor:
             )
 
         return enqueued_count
+
+    def enqueue_outdated_entry_jobs(
+        self, session: Optional[Session] = None
+    ) -> int:
+        """
+        Enqueues link-update-data jobs for the oldest entries based on date_update_last,
+        limited by ConfigurationEntry.number_of_update_entries.
+
+        :param session: Optional active database session
+        :return: Count of newly enqueued entry update jobs
+        """
+        sess = self._get_session(session)
+        config_repo = ConfigRepository(sess)
+        job_repo = JobRepository(sess)
+        config = config_repo.get_config()
+
+        max_entries = config.number_of_update_entries
+        if max_entries is None:
+            max_entries = 10
+        if max_entries <= 0:
+            return 0
+
+        # Find existing active link-update-data jobs to avoid duplicates and respect queue capacity
+        existing_subjects = set(
+            sess.execute(
+                select(BackgroundJob.subject).where(
+                    BackgroundJob.job.in_(("link-update-data", "JOB_LINK_UPDATE_DATA")),
+                    BackgroundJob.enabled == True,
+                )
+            ).scalars().all()
+        )
+
+        remaining_slots = max_entries - len(existing_subjects)
+        if remaining_slots <= 0:
+            return 0
+
+        candidates = (
+            sess.execute(
+                select(LinkDataModel)
+                .where(LinkDataModel.link.isnot(None))
+                .where(LinkDataModel.link != "")
+                .order_by(
+                    LinkDataModel.date_update_last.asc().nullsfirst(),
+                    LinkDataModel.id.asc(),
+                )
+                .limit(remaining_slots * 2)
+            )
+            .scalars()
+            .all()
+        )
+
+        enqueued_count = 0
+        for entry in candidates:
+            if str(entry.id) not in existing_subjects:
+                job_repo.enqueue_job(
+                    job="link-update-data",
+                    subject=str(entry.id),
+                    priority=10,
+                    enabled=True,
+                )
+                existing_subjects.add(str(entry.id))
+                enqueued_count += 1
+                if enqueued_count >= remaining_slots:
+                    break
+
+        if enqueued_count > 0:
+            sess.commit()
+            logger.info(
+                "Enqueued %d entry update job(s) based on date_update_last (cap: %d).",
+                enqueued_count,
+                max_entries,
+            )
+
+        return enqueued_count
+
+    def enqueue_outdated_jobs(
+        self, session: Optional[Session] = None, max_age_seconds: int = 3600
+    ) -> int:
+        """
+        When idle, checks what should be done next:
+        - Checks how many sources to fetch (outdated sources) and enqueues them.
+        - Checks how many entries to update (ConfigurationEntry.number_of_update_entries)
+          based on date_update_last and enqueues link-update-data jobs.
+
+        :param session: Optional active database session
+        :param max_age_seconds: Maximum age before a source is considered outdated (default: 3600s = 1 hour)
+        :return: Total count of newly enqueued jobs
+        """
+        sources_enqueued = self.enqueue_outdated_source_jobs(
+            session=session, max_age_seconds=max_age_seconds
+        )
+        entries_enqueued = self.enqueue_outdated_entry_jobs(session=session)
+        return sources_enqueued + entries_enqueued
 
     def run_loop(
         self,

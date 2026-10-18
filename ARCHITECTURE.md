@@ -144,8 +144,7 @@ All libraries are pure Python packages installed within the local Python virtual
 
 | Library | Version / Constraint | Primary Responsibility |
 | :--- | :--- | :--- |
-| **pytest** | `^8.0` | Test runner for repository, query translator, and route tests |
-| **pytest-flask** | `^1.3` | Flask application test fixture support |
+| **unittest** | Python Standard Library | Test runner for repositories, services, workers, and route tests (`make test` / `python -m unittest discover tests`) |
 | **black** | `^25.9.0` | Code formatting standard |
 | **flake8** | `^7.0` | Linting and code quality checks |
 

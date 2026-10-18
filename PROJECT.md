@@ -41,7 +41,6 @@ Files describing project:
 Naming vs Table names
  - Entries - linkdatamodel
  - Sources - sourcedatamodel
- - Search Views - searchview
  - Configuration - configurationentry
  - Visited Entries History - entryvisithistory
  - Entry Transitions History - entrytransitionhistory
@@ -126,15 +125,18 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - what about github where users or repositories can have different casing?
 
 # Jobs
- - There should be a background task. It should handle processing of jobs.
- - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
- - JOB_LINK_UPDATE_DATA = "link-update-data": updates properties from BaseUrl/RemoteUrl: link title, description, thumbnail, date_published, response status_code, author, album, language, etc. Only updates when url provides valid title, description etc. Adds a job to JOB_LINK_DOWNLOAD_SOCIAL. If link is not valid it should set date_dead_since. If it is valid, should clear it. If link is not acceptable using entry rules, it is removed
- - JOB_LINK_DOWNLOAD_SOCIAL - downloads social meta data (from url.get_social_properties)
- - Worker thread processes this job by obtaining Url like in webtools_service.py (either BaseUrl or RemoteUrl).
- - Fetches BaseUrl/RemoteUrl get_title(), get_description(), get_date_published(), get_author(), get_album(), get_language(), get_thumbnail(), etc. and updates entry(link) with these properties.
- - webtoolkit was introduced to provide parsing and reading of titles, descriptions, date_published, author, etc. Do not fall back on response, nor use beautiful soup. Either BaseUrl/RemoteUrl works, or not.
- - when there are no jobs, then check if any of source requires refresh, adds outdated jobs into queue, and starts processing them.
- - Jobs processing should be done as a separate python script. It shall process jobs
+ - Background task / worker script processes jobs sequentially from `backgroundjob` ordered by priority.
+ - Identifies job types based on `linkarchivetools.BackgroundJob`:
+   - `JOB_PROCESS_SOURCE = "process-source"`: Fetches feeds/sources, checks content hashes, parses entries, and persists new links.
+   - `JOB_LINK_UPDATE_DATA = "link-update-data"`: Refreshes properties from `BaseUrl`/`RemoteUrl` via `WebToolsWrapper`: title, description, thumbnail, date_published, author, album, language, HTTP status_code. Only updates properties when valid. Updates `date_update_last` to 'now'. If link is not valid, sets `date_dead_since`; if valid, clears it. If link is blocked by entry rules, it is removed. Automatically enqueues `JOB_LINK_DOWNLOAD_SOCIAL`.
+   - `JOB_LINK_DOWNLOAD_SOCIAL = "link-download-social"`: Downloads social metadata (`url.get_social_properties`) and updates ratings and visit counters.
+   - `JOB_CLEANUP = "cleanup"`: Enforces storage quotas and retention limits.
+ - Direct WebToolkit Metadata Extraction: `webtoolkit` (`BaseUrl` or `RemoteUrl`) was introduced to provide parsing and reading of titles, descriptions, date_published, author, etc. Do not fall back on response, nor use beautiful soup. Either BaseUrl/RemoteUrl works, or not.
+ - When there are no jobs in the queue, the worker decides what should be done next:
+   - Checks how many sources to fetch (outdated sources exceeding refresh period), adds `process-source` jobs into the queue, and processes them.
+   - Checks how many entries to update: `ConfigurationEntry.number_of_update_entries` is used to identify how many update jobs can be added if no job is in queue. Candidate entries are selected ordered by oldest `date_update_last` (`nullsfirst`), and up to `number_of_update_entries` `link-update-data` jobs are enqueued and processed.
+   - The update process updates `date_update_last` to 'now'.
+ - Job processing is executed as a background worker runner (`JobExecutor` / worker loop).
 
 # Databases management
 It should be possible to download a new database .db file from the internet, or elsewhere.
@@ -290,6 +292,7 @@ There are several list styles:
     -- followers count
     -- stars
     -- page rating visits
+ - search syntax might have effect on SearchViews (filter statement, or order by)
 
 ## EntryDetailScreen
 Displays the details of an entry.
@@ -401,3 +404,10 @@ The screen displays, where available:
  - trigger_rule_url supports re syntax ".*reddit.com.*" should work
  - multiple rules can be defined in a single rule, eg. ".*reddit.com.*, .*github.com.*"
 
+## SearchView
+
+ - support only name, default, priority
+    filter_statement  (same as format as user search statement),
+    order_by (ascending and descending should be supported. Proposing format like in django link sorts ascending -link sorts descending. should support multiple order_by columns, delimited with , character
+    fields for now
+ - currently it can be only used for searching linkdatamodel

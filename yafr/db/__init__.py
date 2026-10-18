@@ -9,6 +9,7 @@ from yafr.db.history_repository import HistoryRepository
 from yafr.db.job_repository import JobRepository
 from yafr.db.logging_repository import LoggingRepository
 from yafr.db.rules_repository import RulesRepository
+from yafr.db.search_view_repository import SearchViewRepository
 from yafr.db.session import (
     close_session,
     get_engine,
@@ -31,5 +32,6 @@ __all__ = [
     "JobRepository",
     "HistoryRepository",
     "RulesRepository",
+    "SearchViewRepository",
     "LoggingRepository",
 ]

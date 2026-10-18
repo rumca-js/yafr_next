@@ -19,6 +19,7 @@ from linkarchivetools.model.definitions import (
 )
 from yafr.app import create_app
 from yafr.db import (
+    ConfigRepository,
     EntryRepository,
     HistoryRepository,
     JobRepository,
@@ -48,6 +49,7 @@ class TestJobExecutor(unittest.TestCase):
         self.source_repo = SourceRepository(self.session)
         self.entry_repo = EntryRepository(self.session)
         self.history_repo = HistoryRepository(self.session)
+        self.config_repo = ConfigRepository(self.session)
 
     def tearDown(self):
         close_session()
@@ -327,6 +329,84 @@ class TestJobExecutor(unittest.TestCase):
             self.assertEqual(result["subject"], source.url)
             self.assertTrue(result["success"])
             mock_fetch.assert_called_once_with(source.id, session=self.session)
+
+    def test_enqueue_outdated_entry_jobs_respects_number_of_update_entries(self):
+        """enqueue_outdated_entry_jobs respects number_of_update_entries and uses date_update_last."""
+        now = datetime.now(timezone.utc)
+        # Entry 1: date_update_last = None (oldest)
+        e1 = self.entry_repo.add_entry(link="https://example.com/item1", title="Item 1")
+        e1.date_update_last = None
+
+        # Entry 2: date_update_last = 2 days ago
+        e2 = self.entry_repo.add_entry(link="https://example.com/item2", title="Item 2")
+        e2.date_update_last = now - timedelta(days=2)
+
+        # Entry 3: date_update_last = 1 day ago
+        e3 = self.entry_repo.add_entry(link="https://example.com/item3", title="Item 3")
+        e3.date_update_last = now - timedelta(days=1)
+
+        # Entry 4: date_update_last = 1 hour ago
+        e4 = self.entry_repo.add_entry(link="https://example.com/item4", title="Item 4")
+        e4.date_update_last = now - timedelta(hours=1)
+        self.session.commit()
+
+        # Set number_of_update_entries = 2 in config
+        config = self.config_repo.get_config()
+        config.number_of_update_entries = 2
+        self.session.commit()
+
+        executor = JobExecutor(session=self.session, auto_refresh_sources=False)
+        enqueued = executor.enqueue_outdated_entry_jobs(session=self.session)
+
+        # Exactly 2 jobs enqueued for the 2 oldest entries (e1 and e2)
+        self.assertEqual(enqueued, 2)
+        enqueued_subjects = list(
+            self.session.execute(
+                select(BackgroundJob.subject).where(
+                    BackgroundJob.job == "link-update-data",
+                    BackgroundJob.enabled == True,
+                )
+            ).scalars().all()
+        )
+        self.assertIn(str(e1.id), enqueued_subjects)
+        self.assertIn(str(e2.id), enqueued_subjects)
+        self.assertNotIn(str(e3.id), enqueued_subjects)
+        self.assertNotIn(str(e4.id), enqueued_subjects)
+
+        # Running again does not create duplicate jobs
+        enqueued_again = executor.enqueue_outdated_entry_jobs(session=self.session)
+        self.assertEqual(enqueued_again, 0)
+
+    def test_empty_queue_fallback_to_outdated_entry(self):
+        """When queue is empty and no outdated sources exist, auto-updates oldest entry and sets date_update_last."""
+        e = self.entry_repo.add_entry(link="https://example.com/old-entry", title="Old Entry")
+        e.date_update_last = None
+        self.session.commit()
+
+        executor = JobExecutor(session=self.session, auto_refresh_sources=True)
+
+        with patch("yafr.workers.jobs.link_jobs.WebToolsWrapper") as mock_webtools_cls:
+            mock_client = MagicMock()
+            mock_client.get_title.return_value = "Updated Entry Title"
+            mock_client.get_description.return_value = "Updated Entry Description"
+            mock_client.get_date_published.return_value = None
+            mock_client.get_author.return_value = None
+            mock_client.get_response.return_value = MagicMock(is_valid=lambda: True)
+            mock_client.is_valid.return_value = True
+            mock_client.get_status_code.return_value = 200
+            mock_webtools_cls.return_value = mock_client
+
+            result = executor.process_one(session=self.session)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["job_type"], "entry-auto-update")
+        self.assertEqual(result["subject"], str(e.id))
+        self.assertTrue(result["success"])
+
+        # Check date_update_last was updated to now
+        refreshed_entry = self.entry_repo.get_by_id(e.id)
+        self.assertIsNotNone(refreshed_entry.date_update_last)
+        self.assertEqual(refreshed_entry.title, "Updated Entry Title")
 
     def test_run_loop_with_max_jobs(self):
         """run_loop terminates cleanly after executing max_jobs."""

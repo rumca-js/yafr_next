@@ -1,5 +1,6 @@
 # TODO
 
+ - [x] running pytest seems to be failing. is ARCHITECTURE.md wrong that we are using pytest? (Resolved: standard library unittest is used via `make test` / `python -m unittest discover tests`; ARCHITECTURE.md and FILES.md updated, unused conftest.py removed)
  - [x] entry list screen
  - [x] sources list screen
  - [x] database screen
@@ -17,9 +18,9 @@
 - [ ] **UI Polish & Bug Fixes**: Address initial search filter layout and clarify worker/online status indicators (from `BUGS.md`).
  - link validation / sanitization - is it fully implemented?
  - link batch operations (delete?)
- - search views - ability to add / edit search views
+ - [x] search views - ability to add / edit search views (SearchView editor in Configuration: name, default, priority, filter_statement, order_by)
  - provide docker compose script and Dockerfile
- - On hold - introduce system operations table
+ - On hold - introduce system operations table to mark that threads are working
  - if database file is replaced, how thread should be restarted?
  - provide ability to block entries (blockentries tbale)
  - provide ability to add many sources
@@ -27,6 +28,5 @@
  - page properties tool
  - source list: order by errors
  - user should be able to trigger link update
- - running pytest seems to be failing. is ARCHITECTURE.md wrong that we are using pytest?
 
- - source detail fetch update should create a job link-update
+ - source detail fetch update should create a job process-source

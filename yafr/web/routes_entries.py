@@ -28,7 +28,16 @@ def search_view():
     - If 'q' is provided: displays search widget at top with search results container.
     """
     query = request.args.get("q", "").strip()
-    active_filter = request.args.get("filter", "date_published")
+    session = get_session()
+    config_repo = ConfigRepository(session)
+    history_repo = HistoryRepository(session)
+    entry_repo = EntryRepository(session)
+
+    filters = FilterRegistry.get_available_filters(session)
+    active_filter = request.args.get("filter")
+    if not active_filter:
+        active_filter = filters[0].id if filters else "date_published"
+
     page = max(1, request.args.get("page", 1, type=int))
     # When user enters a query OR performs search with no input ("q" in request.args, page, or filter)
     has_query = (
@@ -37,11 +46,6 @@ def search_view():
         or ("filter" in request.args)
         or bool(query)
     )
-
-    session = get_session()
-    config_repo = ConfigRepository(session)
-    history_repo = HistoryRepository(session)
-    entry_repo = EntryRepository(session)
 
     config = config_repo.get_config()
     display_type = request.args.get("display", config.display_type or "gallery")
@@ -73,7 +77,6 @@ def search_view():
     total_pages = (
         max(1, math.ceil(total_results / per_page)) if total_results > 0 else 1
     )
-    filters = FilterRegistry.get_available_filters(session)
 
     # Attach sources, social metrics, tags, and status mappings for template rendering
     entry_ids = [e.id for e in entries]

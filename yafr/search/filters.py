@@ -90,7 +90,7 @@ class FilterRegistry:
         :param session: Optional active database session
         :return: List of SearchFilter instances
         """
-        filters = list(SYSTEM_FILTERS)
+        filters = [SearchFilter(f.id, f.name, f.is_default, f.hover_text) for f in SYSTEM_FILTERS]
         try:
             db_session = session or get_session()
             stmt = select(SearchView).order_by(
@@ -98,35 +98,79 @@ class FilterRegistry:
             )
             custom_views = db_session.execute(stmt).scalars().all()
 
+            # Ensure ONLY ONE filter can be default across all system and custom filters
+            custom_default = next((v for v in custom_views if v.default), None)
+            if custom_default:
+                for f in filters:
+                    f.is_default = False
+            else:
+                for idx, f in enumerate(filters):
+                    f.is_default = (idx == 0)
+
             for view in custom_views:
                 if not any(f.id == f"custom_{view.id}" for f in filters):
+                    is_this_default = bool(custom_default and view.id == custom_default.id)
                     filters.append(
                         SearchFilter(
                             id=f"custom_{view.id}",
                             name=view.name,
-                            is_default=bool(view.default),
+                            is_default=is_this_default,
                             hover_text=view.hover_text,
                         )
                     )
         except Exception as err:
             logger.debug("Failed to query custom SearchView records: %s", err)
 
+        # "default" filter should be always on top in UI combos
+        default_idx = next((i for i, f in enumerate(filters) if f.is_default), -1)
+        if default_idx > 0:
+            default_item = filters.pop(default_idx)
+            filters.insert(0, default_item)
+
         return filters
 
     @classmethod
-    def get_filter(cls, filter_id: Optional[str]) -> SearchFilter:
+    def get_search_view(
+        cls, filter_id: Optional[str], session: Optional[Session] = None
+    ) -> Optional[SearchView]:
+        """
+        Retrieves a custom SearchView if the filter_id represents one (e.g. 'custom_42').
+
+        :param filter_id: Filter ID string
+        :param session: Optional active database session
+        :return: SearchView instance or None
+        """
+        if not filter_id or not str(filter_id).startswith("custom_"):
+            return None
+        try:
+            view_id = int(str(filter_id).replace("custom_", ""))
+            db_session = session or get_session()
+            return db_session.get(SearchView, view_id)
+        except Exception as err:
+            logger.debug("Failed to retrieve SearchView for filter '%s': %s", filter_id, err)
+            return None
+
+    @classmethod
+    def get_filter(
+        cls, filter_id: Optional[str], session: Optional[Session] = None
+    ) -> SearchFilter:
         """
         Resolves a filter by ID, falling back to 'date_published' default.
 
         :param filter_id: Filter ID string
+        :param session: Optional active database session
         :return: Matching SearchFilter
         """
-        if not filter_id:
-            filter_id = "date_published"
+        all_filters = cls.get_available_filters(session=session)
+        if filter_id:
+            for f in all_filters:
+                if f.id == filter_id:
+                    return f
+            return SYSTEM_FILTERS[0]
 
-        for f in cls.get_system_filters():
-            if f.id == filter_id:
+        # If filter_id is None or empty, return default filter if defined
+        for f in all_filters:
+            if f.is_default:
                 return f
 
-        # Fallback to date_published
         return SYSTEM_FILTERS[0]

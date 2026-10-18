@@ -28,6 +28,9 @@ FIELD_ALIASES = {
     "tag": "tag",
     "tags": "tag",
     "status": "status",
+    "bookmark": "bookmarked",
+    "bookmarked": "bookmarked",
+    "bookmarks": "bookmarked",
 }
 
 ORDER_DIRECTIVES = ("order:", "sort:")

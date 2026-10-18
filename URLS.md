@@ -587,7 +587,128 @@ Following the project requirement to **"prefer having small server functions tha
 
 ---
 
-### 2.7 System Status API (`/api/status`)
+### 2.7 SearchView API (`/api/search-views`)
+
+#### `GET /api/search-views`
+- **Purpose**: Lists all configured search views ordered by priority.
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "count": 2,
+    "search_views": [
+      {
+        "id": 1,
+        "name": "Default",
+        "default": true,
+        "priority": 1,
+        "filter_statement": "",
+        "order_by": "-date_published, -page_rating, link"
+      }
+    ]
+  }
+  ```
+- **Offline Capable**: Yes.
+
+#### `GET /api/search-views/<int:id>`
+- **Purpose**: Retrieves a specific search view by ID.
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "search_view": {
+      "id": 1,
+      "name": "Default",
+      "default": true,
+      "priority": 1,
+      "filter_statement": "",
+      "order_by": "-date_published, -page_rating, link"
+    }
+  }
+  ```
+- **Offline Capable**: Yes.
+
+#### `POST /api/search-views`
+- **Purpose**: Creates a new search view. Supported fields: `name`, `default`, `priority`, `filter_statement`, `order_by`.
+- **Request Body**:
+  ```json
+  {
+    "name": "Bookmarks by creation",
+    "default": false,
+    "priority": 5,
+    "filter_statement": "bookmarked=True",
+    "order_by": "-date_created, link"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Search view created successfully.",
+    "search_view": {
+      "id": 2,
+      "name": "Bookmarks by creation",
+      "default": false,
+      "priority": 5,
+      "filter_statement": "bookmarked=True",
+      "order_by": "-date_created, link"
+    }
+  }
+  ```
+- **Offline Capable**: Yes.
+
+#### `POST /api/search-views/<int:id>` (or `PUT`)
+- **Purpose**: Modifies an existing search view.
+- **Request Body**:
+  ```json
+  {
+    "priority": 3,
+    "filter_statement": "tag=python"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Search view updated successfully.",
+    "search_view": {
+      "id": 2,
+      "name": "Bookmarks by creation",
+      "default": false,
+      "priority": 3,
+      "filter_statement": "tag=python",
+      "order_by": "-date_created, link"
+    }
+  }
+  ```
+- **Offline Capable**: Yes.
+
+#### `DELETE /api/search-views/<int:id>`
+- **Purpose**: Deletes a search view.
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "deleted_id": 2,
+    "message": "Search view deleted successfully."
+  }
+  ```
+- **Offline Capable**: Yes.
+
+#### `POST /api/search-views/<int:id>/set-default`
+- **Purpose**: Sets the specified search view as default and clears default flag from other views.
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Search view 'Bookmarks by creation' set as default."
+  }
+  ```
+- **Offline Capable**: Yes.
+
+---
+
+### 2.8 System Status API (`/api/status`)
 
 #### `GET /api/status/health`
 - **Purpose**: System health monitor. Reports worker loop status, network availability, and badge alert counts.

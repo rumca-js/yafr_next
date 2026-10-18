@@ -44,6 +44,7 @@ class ConfigRepository(BaseRepository[ConfigurationEntry]):
                 thumbnails_as_icons=True,
                 entries_visit_alpha=0.6,
                 entries_dead_alpha=0.4,
+                number_of_update_entries=10,
                 max_number_of_user_search=300,
                 max_user_entry_visit_history=5000,
                 links_per_page=25,

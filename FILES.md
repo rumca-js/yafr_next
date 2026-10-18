@@ -33,6 +33,7 @@ yafr_next/
 │   │   ├── job_repository.py                 # Repository for BackgroundJob & History
 │   │   ├── history_repository.py             # Repository for SearchHistory & EntryVisitHistory
 │   │   ├── rules_repository.py               # Repository for EntryRules & regex rule matching
+│   │   ├── search_view_repository.py         # Repository for custom SearchView records
 │   │   ├── config_repository.py              # Repository for ConfigurationEntry
 │   │   └── logging_repository.py             # Repository for AppLogging with severity levels
 │   │
@@ -50,6 +51,7 @@ yafr_next/
 │   │   ├── rule_service.py                   # Rule evaluation engine (regex URLs, auto-tagging)
 │   │   ├── preview_service.py                # URL preview metadata & yt-dlp media extraction
 │   │   ├── history_service.py                # Search autocomplete, visit tracking & transitions
+│   │   ├── search_view_service.py            # SearchView business logic, validation & CRUD
 │   │   ├── database_service.py               # DB statistics, table truncating & remote download
 │   │   └── logging_service.py                # Application logging helper & log pruning
 │   │
@@ -81,7 +83,8 @@ yafr_next/
 │   │       ├── api_jobs.py                   # JSON endpoints: pause, resume, cancel, trigger
 │   │       ├── api_history.py                # JSON endpoints: autocomplete search, clear visits
 │   │       ├── api_status.py                 # JSON endpoints: worker heartbeat, progress info
-│   │       └── api_config.py                 # JSON endpoints: quick theme & display style toggle
+│   │       ├── api_config.py                 # JSON endpoints: quick theme & display style toggle
+│   │       └── api_search_views.py           # JSON endpoints: CRUD & default toggle for SearchViews
 │   │
 │   ├── templates/                            # Jinja2 HTML Templates
 │   │   ├── base.html                         # Base HTML skeleton, theme switcher, modal shells
@@ -150,9 +153,8 @@ yafr_next/
 │           ├── bootstrap-icons.woff          # Icon font (woff)
 │           └── bootstrap-icons.woff2         # Icon font (woff2)
 │
-└── tests/                                    # Automated Test Suite
+└── tests/                                    # Automated Test Suite (standard library unittest)
     ├── __init__.py
-    ├── conftest.py                           # Pytest fixtures (in-memory SQLite, test app client)
     ├── test_repositories.py                  # Unit tests for Repositories & FIFO limits
     ├── test_search_parser.py                 # Unit tests for search operators (=, ==, LIKE)
     ├── test_services.py                      # Unit tests for business services

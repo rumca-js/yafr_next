@@ -10,6 +10,7 @@ from yafr.web.api import (
     api_history_bp,
     api_jobs_bp,
     api_logs_bp,
+    api_search_views_bp,
     api_sources_bp,
 )
 from yafr.web.routes_config import config_bp
@@ -35,6 +36,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(api_history_bp)
     app.register_blueprint(api_jobs_bp)
     app.register_blueprint(api_logs_bp)
+    app.register_blueprint(api_search_views_bp)
     app.register_blueprint(api_sources_bp)
     app.register_blueprint(api_database_bp)
     app.register_blueprint(api_config_bp)
