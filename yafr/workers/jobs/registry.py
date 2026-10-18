@@ -9,7 +9,10 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 from linkarchivetools.model.definitions import BackgroundJob
 from yafr.workers.jobs.base import BaseJobHandler
-from yafr.workers.jobs.link_jobs import LinkUpdateDataJobHandler
+from yafr.workers.jobs.link_jobs import (
+    LinkDownloadSocialJobHandler,
+    LinkUpdateDataJobHandler,
+)
 from yafr.workers.jobs.source_jobs import ProcessSourceJobHandler
 from yafr.workers.jobs.system_jobs import CleanupJobHandler, GenericJobHandler
 
@@ -54,6 +57,7 @@ def create_default_registry() -> JobRegistry:
     registry = JobRegistry()
     registry.register(ProcessSourceJobHandler())
     registry.register(LinkUpdateDataJobHandler())
+    registry.register(LinkDownloadSocialJobHandler())
     registry.register(CleanupJobHandler())
     return registry
 

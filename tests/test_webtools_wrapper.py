@@ -478,8 +478,11 @@ class TestWebToolsStatusApi(unittest.TestCase):
         self.assertEqual(wrapper.get_title(), "Mocked Page Title")
         self.assertEqual(wrapper.get_description(), "Mocked Page Description")
 
-    def test_get_title_and_description_html_fallback(self):
-        """WebToolsWrapper falls back to parsing HTML when handler does not provide title/description."""
+    def test_no_fallback_to_response_or_beautifulsoup(self):
+        """
+        WebToolsWrapper does NOT fall back on response object or BeautifulSoup HTML parsing.
+        Either BaseUrl/RemoteUrl works, or not.
+        """
         html_doc = """
         <html>
             <head>
@@ -495,12 +498,86 @@ class TestWebToolsStatusApi(unittest.TestCase):
         wrapper.url_handler = MagicMock(spec=[])  # No get_title / get_description
         mock_resp = MagicMock()
         mock_resp.get_text.return_value = html_doc
-        mock_resp.get_title.return_value = None
-        mock_resp.get_description.return_value = None
+        mock_resp.get_title.return_value = "Response Title Fallback"
+        mock_resp.get_description.return_value = "Response Description Fallback"
         wrapper._response = mock_resp
 
-        self.assertEqual(wrapper.get_title(), "HTML Fallback Title")
-        self.assertEqual(wrapper.get_description(), "HTML Fallback Description")
+        # Must return None because handler does not provide them; no fallback allowed
+        self.assertIsNone(wrapper.get_title())
+        self.assertIsNone(wrapper.get_description())
+
+    def test_all_metadata_getters_delegate_to_handler(self):
+        """
+        WebToolsWrapper delegates title, description, date_published, author, album,
+        language, thumbnail, tags, canonical_url, and social_properties to url_handler.
+        """
+        wrapper = WebToolsWrapper(
+            url="https://example.com/meta-page", session=self.session
+        )
+        mock_handler = MagicMock()
+        pub_date = datetime(2026, 5, 10, 12, 0, tzinfo=timezone.utc)
+        mock_handler.get_title.return_value = "Sample Title"
+        mock_handler.get_description.return_value = "Sample Description"
+        mock_handler.get_date_published.return_value = pub_date
+        mock_handler.get_author.return_value = "Sample Author"
+        mock_handler.get_language.return_value = "en"
+        mock_handler.get_thumbnail.return_value = "https://example.com/thumb.png"
+        mock_handler.get_album.return_value = "Sample Album"
+        mock_handler.get_tags.return_value = ["tech", "python"]
+        mock_handler.get_canonical_url.return_value = "https://example.com/canonical"
+        mock_handler.get_social_properties.return_value = {"rating": 4.5, "thumbs_up": 100}
+
+        wrapper.url_handler = mock_handler
+        wrapper._response = MagicMock(is_valid=lambda: True)
+
+        self.assertEqual(wrapper.get_title(), "Sample Title")
+        self.assertEqual(wrapper.get_description(), "Sample Description")
+        self.assertEqual(wrapper.get_date_published(), pub_date)
+        self.assertEqual(wrapper.get_author(), "Sample Author")
+        self.assertEqual(wrapper.get_language(), "en")
+        self.assertEqual(wrapper.get_thumbnail(), "https://example.com/thumb.png")
+        self.assertEqual(wrapper.get_album(), "Sample Album")
+        self.assertEqual(wrapper.get_tags(), ["tech", "python"])
+        self.assertEqual(wrapper.get_canonical_url(), "https://example.com/canonical")
+        self.assertEqual(
+            wrapper.get_social_properties(), {"rating": 4.5, "thumbs_up": 100}
+        )
+
+    def test_convenience_fetch_metadata_helpers(self):
+        """
+        WebToolsWrapper.fetch_title, fetch_description, fetch_date_published, and
+        fetch_author work correctly.
+        """
+        pub_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        mock_handler = MagicMock()
+        mock_handler.get_title.return_value = "Fetched Title"
+        mock_handler.get_description.return_value = "Fetched Description"
+        mock_handler.get_date_published.return_value = pub_date
+        mock_handler.get_author.return_value = "Fetched Author"
+
+        with patch.object(WebToolsWrapper, "_create_handler", return_value=mock_handler):
+            self.assertEqual(
+                WebToolsWrapper.fetch_title("https://example.com/f", session=self.session),
+                "Fetched Title",
+            )
+            self.assertEqual(
+                WebToolsWrapper.fetch_description(
+                    "https://example.com/f", session=self.session
+                ),
+                "Fetched Description",
+            )
+            self.assertEqual(
+                WebToolsWrapper.fetch_date_published(
+                    "https://example.com/f", session=self.session
+                ),
+                pub_date,
+            )
+            self.assertEqual(
+                WebToolsWrapper.fetch_author(
+                    "https://example.com/f", session=self.session
+                ),
+                "Fetched Author",
+            )
 
 
 if __name__ == "__main__":

@@ -6,7 +6,12 @@ sequential dispatcher / executor loop.
 """
 
 from yafr.workers.jobs.base import BaseJobHandler
-from yafr.workers.jobs.link_jobs import JOB_LINK_UPDATE_DATA, LinkUpdateDataJobHandler
+from yafr.workers.jobs.link_jobs import (
+    JOB_LINK_DOWNLOAD_SOCIAL,
+    JOB_LINK_UPDATE_DATA,
+    LinkDownloadSocialJobHandler,
+    LinkUpdateDataJobHandler,
+)
 from yafr.workers.jobs.registry import (
     JobRegistry,
     create_default_registry,
@@ -25,10 +30,12 @@ __all__ = [
     "create_default_registry",
     "default_registry",
     "LinkUpdateDataJobHandler",
+    "LinkDownloadSocialJobHandler",
     "ProcessSourceJobHandler",
     "CleanupJobHandler",
     "GenericJobHandler",
     "JOB_LINK_UPDATE_DATA",
+    "JOB_LINK_DOWNLOAD_SOCIAL",
     "JOB_PROCESS_SOURCE",
     "JOB_CLEANUP",
 ]

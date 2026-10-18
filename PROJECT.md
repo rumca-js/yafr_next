@@ -116,17 +116,23 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - source.SourceOperationalDataRepository has page_hash (entire source hash), and body_hash (body, or entries hash). If it is not different than previous one, you can skip refresh, and mark as read
  - SourceOperationalDataRepository stores the amount of source entries, consecutive_errors contain the amount of consecutive errors. Is cleared when valid response is received.
  - source is marked as read when it's response is valid, if it is not consecutive errors counter is incremented
- - all links from sources (or from jobs) should pass through some EntryLinkBuilder (or similar). it shall check ConfigurationEntry if link of this type is accepted or not. ConfigurationEntry has fields to accept_domain_links, etc. It should also check entry rules, if are blocking entries
+ - all links from sources (or from jobs) should pass through some EntryLinkBuilder
  - each entry inherits some properties of source (if source property is defined). language, age. if source.auto_tag is defined it should also add said tags
+
+## Entry creation
+ - it shall check ConfigurationEntry if link of this type is accepted or not. ConfigurationEntry has fields to accept_domain_links, etc. It should also check entry rules, if are blocking entries
+ - when inserting check if link already exist (exact check)
+ - when inserting check if https:// exists, or non-www, and try to add it
+ - what about github where users or repositories can have different casing?
 
 # Jobs
  - There should be a background task. It should handle processing of jobs.
  - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
  - JOB_LINK_UPDATE_DATA = "link-update-data": updates properties from BaseUrl/RemoteUrl: link title, description, thumbnail, date_published, response status_code, author, album, language, etc. Only updates when url provides valid title, description etc. Adds a job to JOB_LINK_DOWNLOAD_SOCIAL. If link is not valid it should set date_dead_since. If it is valid, should clear it. If link is not acceptable using entry rules, it is removed
  - JOB_LINK_DOWNLOAD_SOCIAL - downloads social meta data (from url.get_social_properties)
- - When links are added by the user, this job is added to the background queue.
  - Worker thread processes this job by obtaining Url like in webtools_service.py (either BaseUrl or RemoteUrl).
- - Fetches BaseUrl.get_title(), BaseUrl.get_description() and updates entry(link) with these properties.
+ - Fetches BaseUrl/RemoteUrl get_title(), get_description(), get_date_published(), get_author(), get_album(), get_language(), get_thumbnail(), etc. and updates entry(link) with these properties.
+ - webtoolkit was introduced to provide parsing and reading of titles, descriptions, date_published, author, etc. Do not fall back on response, nor use beautiful soup. Either BaseUrl/RemoteUrl works, or not.
  - when there are no jobs, then check if any of source requires refresh, adds outdated jobs into queue, and starts processing them.
  - Jobs processing should be done as a separate python script. It shall process jobs
 
@@ -165,7 +171,7 @@ It should be possible to download a new database .db file from the internet, or 
  - use reasonable directory structure. UI elements, or components should have their directories, controller logic should be separated, model, etc.
  - Network operations must not block the UI thread.
  - Network failures must be handled gracefully.
- - Use webtoolkit.BaseUrl or webtoolkit.RemoteUrl to read links, RSS sources, parse sources
+ - Use webtoolkit.BaseUrl or webtoolkit.RemoteUrl to read links, RSS sources, parse sources. webtoolkit was introduced to provide parsing and reading of titles, descriptions, date_published, author, etc. Do not fall back on response, nor to use beautiful soup. Either BaseUrl/RemoteUrl works, or not.
  - Database failures must be reported to the user (eg. SQLite errors).
  - Long-running operations must expose their current state.
  - Destructive operations must require user confirmation.

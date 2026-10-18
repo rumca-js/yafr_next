@@ -104,15 +104,21 @@ class TestJobExecutor(unittest.TestCase):
 
         executor = JobExecutor(session=self.session, auto_refresh_sources=False)
 
+        pub_date = datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc)
         with patch("yafr.workers.jobs.link_jobs.WebToolsWrapper") as mock_webtools_cls:
             mock_client = MagicMock()
             mock_handler = MagicMock()
             mock_handler.get_title.return_value = "Updated Web Title"
             mock_handler.get_description.return_value = "Updated Web Description"
+            mock_handler.get_date_published.return_value = pub_date
+            mock_handler.get_author.return_value = "Updated Author"
             mock_client.url_handler = mock_handler
             mock_client.get_title.return_value = "Updated Web Title"
             mock_client.get_description.return_value = "Updated Web Description"
+            mock_client.get_date_published.return_value = pub_date
+            mock_client.get_author.return_value = "Updated Author"
             mock_client.get_response.return_value = MagicMock(is_valid=lambda: True)
+            mock_client.is_valid.return_value = True
             mock_client.get_status_code.return_value = 200
             mock_webtools_cls.return_value = mock_client
 
@@ -126,11 +132,79 @@ class TestJobExecutor(unittest.TestCase):
         updated_entry = self.entry_repo.get_by_id(entry_id)
         self.assertEqual(updated_entry.title, "Updated Web Title")
         self.assertEqual(updated_entry.description, "Updated Web Description")
+        self.assertEqual(updated_entry.date_published, pub_date)
+        self.assertEqual(updated_entry.author, "Updated Author")
         self.assertEqual(updated_entry.status_code, 200)
+        self.assertIsNone(updated_entry.date_dead_since)
         self.assertIsNotNone(updated_entry.date_update_last)
 
         # Job completed and archived
         self.assertIsNone(self.job_repo.get_by_id(BackgroundJob, job.id))
+
+    def test_process_link_update_data_job_dead_link(self):
+        """When link fetch fails, date_dead_since timestamp is recorded."""
+        entry = self.entry_repo.add_entry(
+            link="https://example.com/dead-link",
+            title="Dead Link Entry",
+        )
+        entry_id = entry.id
+        self.assertIsNone(entry.date_dead_since)
+
+        job = self.job_repo.enqueue_job(
+            job="link-update-data",
+            subject=str(entry_id),
+            priority=1,
+            enabled=True,
+        )
+
+        executor = JobExecutor(session=self.session, auto_refresh_sources=False)
+
+        with patch("yafr.workers.jobs.link_jobs.WebToolsWrapper") as mock_webtools_cls:
+            mock_client = MagicMock()
+            mock_client.get_response.return_value = None
+            mock_client.is_valid.return_value = False
+            mock_webtools_cls.return_value = mock_client
+
+            result = executor.process_one(session=self.session)
+
+        # Worker handled the dead link
+        updated_entry = self.entry_repo.get_by_id(entry_id)
+        self.assertIsNotNone(updated_entry.date_dead_since)
+
+    def test_process_link_download_social_job(self):
+        """JobExecutor processes link-download-social task and updates entry rating and visits."""
+        entry = self.entry_repo.add_entry(
+            link="https://example.com/social-entry",
+            title="Social Test",
+        )
+        entry_id = entry.id
+
+        job = self.job_repo.enqueue_job(
+            job="link-download-social",
+            subject=str(entry_id),
+            priority=1,
+            enabled=True,
+        )
+
+        executor = JobExecutor(session=self.session, auto_refresh_sources=False)
+
+        with patch("yafr.workers.jobs.link_jobs.WebToolsWrapper") as mock_webtools_cls:
+            mock_client = MagicMock()
+            mock_client.get_social_properties.return_value = {
+                "rating": 4.8,
+                "thumbs_up": 120,
+                "view_count": 3500,
+            }
+            mock_webtools_cls.return_value = mock_client
+
+            result = executor.process_one(session=self.session)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result["success"])
+        updated = self.entry_repo.get_by_id(entry_id)
+        self.assertEqual(updated.page_rating, 4.8)
+        self.assertEqual(updated.page_rating_votes, 120)
+        self.assertEqual(updated.page_rating_visits, 3500)
 
     def test_enqueue_outdated_jobs(self):
         """enqueue_outdated_jobs enqueues process-source jobs for outdated sources."""

@@ -266,8 +266,8 @@ stateDiagram-v2
      - `JOB_PROCESS_SOURCE`, `JOB_LINK_UPDATE_DATA`, `JOB_LINK_RESET_DATA`, `JOB_LINK_DOWNLOAD_SOCIAL`, `JOB_RUN_RULE`, `JOB_CLEANUP`, `JOB_TRUNCATE_TABLE`.
    - **`JOB_LINK_UPDATE_DATA = "link-update-data"` Execution**:
      - Obtains URL handler like in `webtools_service.py` (`BaseUrl` or `RemoteUrl` based on active configuration).
-     - Executes network request and invokes `BaseUrl.get_title()` and `BaseUrl.get_description()` (with fallback to BeautifulSoup HTML parsing).
-     - Updates entry (`linkdatamodel`) with title, description, HTTP `status_code`, and `date_update_last`.
+     - Executes network request and invokes BaseUrl/RemoteUrl metadata extractors directly (get_title, get_description, date_published, author, etc.). No fallback to raw response or BeautifulSoup HTML parsing; either BaseUrl/RemoteUrl works, or not.
+     - Updates entry (`linkdatamodel`) with title, description, date_published, author, album, language, thumbnail, HTTP `status_code`, and `date_dead_since`. Enqueues `JOB_LINK_DOWNLOAD_SOCIAL`.
    - Executes jobs sequentially based on priority.
    - Records errors in `backgroundjob.errors`. If consecutive failures exceed max retries (3), disables the job (`enabled = False`) and creates an entry in `applogging`.
 2. **SourceRefreshWorker & Outdated Jobs Handling**:
@@ -385,7 +385,7 @@ Users can add links manually via the Quick Add modal accessible from the navbar 
   - Version upgraded to `https://`.
 - **Policy & Rule Feedback**: Real-time feedback if a link violates domain, IP, Tor onion, or dead link policies, with an option to override for manual additions. Alerts if a link is blocked by `EntryRules`.
 - **Batch Link Ingestion (`/api/entries/batch-add`)**: Textarea allowing pasting up to 200 URLs at once, sanitized and de-duplicated through `EntryBuilder`.
-- **Asynchronous Metadata Fetching (`JOB_LINK_UPDATE_DATA`)**: When links are added by the user (via Quick Add, Batch Ingestion, or New Entry screen), a `JOB_LINK_UPDATE_DATA = "link-update-data"` job is enqueued. The worker thread fetches `BaseUrl.get_title()` and `BaseUrl.get_description()` via `WebToolsWrapper` to populate entry title and description.
+- **Asynchronous Metadata Fetching (`JOB_LINK_UPDATE_DATA`)**: When links are added by the user (via Quick Add, Batch Ingestion, or New Entry screen), a `JOB_LINK_UPDATE_DATA = "link-update-data"` job is enqueued. The worker thread fetches `BaseUrl`/`RemoteUrl` metadata (title, description, date_published, author, thumbnail, etc.) via `WebToolsWrapper` to populate entry metadata directly without fallback to raw response or BeautifulSoup parsing.
 
 ---
 

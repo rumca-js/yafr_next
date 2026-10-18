@@ -12,6 +12,8 @@ from yafr.services.webtools_service import (
     WebToolsWrapper,
     check_remote_status,
     create_url,
+    fetch_author,
+    fetch_date_published,
     fetch_description,
     fetch_response,
     fetch_text,
@@ -29,4 +31,6 @@ __all__ = [
     "fetch_response",
     "fetch_title",
     "fetch_description",
+    "fetch_date_published",
+    "fetch_author",
 ]
