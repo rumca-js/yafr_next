@@ -90,6 +90,90 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - Any input should be limited. Do not allow infinite amount of inputs. For example entries can be inserted by a textfield, but only allow 200 to ba added by one field at a time
  - Link addition UI provides a quick modal from navbar and EntriesListView with live validation, clickable proposition buttons, and a batch ingestion tab for up to 200 URLs.
 
+# JobsView
+ - displays list of jobs
+ - allows to create a job
+ - user can select jobs to remove, or pause, or resume
+ - user should be able to select order of jobs (by enabled, date_created, errors)
+ - user should be able to filter by type (infos, errors, warnings, etc)
+
+# Browsing
+ - Every entry visit is recorded (if configured so).
+ - Visit information is stored in the UserEntryVisitHistory SQLite table (`entryvisithistory`).
+ - The application can display the user's visited entries.
+ - The application can clear the user's visit history.
+ - Entries can be saved to read later, stored in the `readlater` SQLite table.
+ - The application can display and clear the user's read later entries.
+ - When EntryDetailScreen is visited, it contains pane below to which entries user transitions to.
+ - Entry transitions are maintained by UserEntryTransitionHistory SQLite table (`entrytransitionhistory`).
+
+## Sources refresh
+ - disabled sources should be skipped
+ - sources that were fetched earlier than hour since source.date\_fetch should be skipped
+ - should use order of sources by last fetched (or that never have been fetched)
+ - should change date\_fetch, but only after attempt to read source has been made
+ - if database is change, the worker should not process any older data for previous database
+ - source.SourceOperationalDataRepository has page_hash (entire source hash), and body_hash (body, or entries hash). If it is not different than previous one, you can skip refresh, and mark as read
+ - SourceOperationalDataRepository stores the amount of source entries, consecutive_errors contain the amount of consecutive errors. Is cleared when valid response is received.
+ - source is marked as read when it's response is valid, if it is not consecutive errors counter is incremented
+ - all links from sources (or from jobs) should pass through some EntryLinkBuilder (or similar). it shall check ConfigurationEntry if link of this type is accepted or not. ConfigurationEntry has fields to accept_domain_links, etc. It should also check entry rules, if are blocking entries
+ - each entry inherits some properties of source (if source property is defined). language, age. if source.auto_tag is defined it should also add said tags
+
+# Jobs
+ - There should be a background task. It should handle processing of jobs.
+ - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
+ - JOB_LINK_UPDATE_DATA = "link-update-data": updates properties from BaseUrl/RemoteUrl: link title, description, thumbnail, date_published, response status_code, author, album, language, etc. Only updates when url provides valid title, description etc. Adds a job to JOB_LINK_DOWNLOAD_SOCIAL. If link is not valid it should set date_dead_since. If it is valid, should clear it. If link is not acceptable using entry rules, it is removed
+ - JOB_LINK_DOWNLOAD_SOCIAL - downloads social meta data (from url.get_social_properties)
+ - When links are added by the user, this job is added to the background queue.
+ - Worker thread processes this job by obtaining Url like in webtools_service.py (either BaseUrl or RemoteUrl).
+ - Fetches BaseUrl.get_title(), BaseUrl.get_description() and updates entry(link) with these properties.
+ - when there are no jobs, then check if any of source requires refresh, adds outdated jobs into queue, and starts processing them.
+ - Jobs processing should be done as a separate python script. It shall process jobs
+
+# Databases management
+It should be possible to download a new database .db file from the internet, or elsewhere.
+
+# Code Requirements
+ - prefer having small server functions that returns JSON data.
+    -- for example /api/source-disable/123 should disable source 123, and provide JSON response
+ - provide interactive UI, that fetches data when necessary
+ - use bootstrap 5, you can use javascript, jQuery
+ - pages should be quite responsive. Not all page contents need to be refreshed when action is performed, some sections can be fetched as needed
+ - prefer using css files for styles
+ - when removing rows remember to remove rows that depend on it. For example some tables depend on linkdatamodel entries
+ - Use small functions.
+ - Keep classes small and focused.
+ - Divide functionality into small files.
+ - Give each class a clear responsibility.
+ - Avoid duplicating database access logic.
+ - Keep UI code separate from database and networking code.
+ - Use repositories for database access.
+ - Use appropriate abstractions for downloading files and fetching web pages.
+ - Provide API documentation using Doxygen-style comments.
+ - Document public classes.
+ - Document public methods.
+ - Document non-obvious implementation decisions.
+ - Use descriptive names for classes, methods, and variables.
+ - Prefer simple implementations over unnecessary abstractions.
+ - Prefer simiplicity of calls and structure
+ - When handling SQLite tables, then apply some storage limits. For example, we may store history of user searches. Do not allow for infinite growth, but allow only a fixed amount of entries to be added. New entries replace old ones. One exception is Entries. There is no limit for them
+ - when creating views check if url can be accessed. Even if we don't have yet any 'permissions' we will be able to addd it later
+ - consider batch operations to obtain data. There can be many rows in link database.
+
+# General Requirements
+ - The application must remain usable when the device is offline.
+ - use reasonable directory structure. UI elements, or components should have their directories, controller logic should be separated, model, etc.
+ - Network operations must not block the UI thread.
+ - Network failures must be handled gracefully.
+ - Use webtoolkit.BaseUrl or webtoolkit.RemoteUrl to read links, RSS sources, parse sources
+ - Database failures must be reported to the user (eg. SQLite errors).
+ - Long-running operations must expose their current state.
+ - Destructive operations must require user confirmation.
+ - The application must preserve locally available databases when network operations fail.
+ - The application must not modify a local database unless the user explicitly requests an update or refresh.
+ - If a modification control cannot be hidden, it must be disabled.
+ - if network is disabled network related widgets, like buttons should be not visible
+
 # Views
  - EntriesListView - default 'search' google like view
  - EntryDetailView - view showing only one result (entry), similar to YouTube video preview
@@ -285,6 +369,8 @@ The screen displays, where available:
  - Saves changes to the sourcedatamodel table in the active database.
  - Only accessible when the active database is writable.
  - Email sources are supported by webtoolkit/webtoolkit/utils/emailreader. Is something is missing there indicate
+ - Email sources entries are inserted into database as links, where link is in format email://{source.id}/{message.id}
+ - emails are read only for 24 last hours
 
 ## DatabaseScreen
 - displays database information
@@ -309,86 +395,3 @@ The screen displays, where available:
  - trigger_rule_url supports re syntax ".*reddit.com.*" should work
  - multiple rules can be defined in a single rule, eg. ".*reddit.com.*, .*github.com.*"
 
-# JobsView
- - displays list of jobs
- - allows to create a job
- - user can select jobs to remove, or pause, or resume
- - user should be able to select order of jobs (by enabled, date_created, errors)
- - user should be able to filter by type (infos, errors, warnings, etc)
-
-# Browsing
- - Every entry visit is recorded (if configured so).
- - Visit information is stored in the UserEntryVisitHistory SQLite table (`entryvisithistory`).
- - The application can display the user's visited entries.
- - The application can clear the user's visit history.
- - Entries can be saved to read later, stored in the `readlater` SQLite table.
- - The application can display and clear the user's read later entries.
- - When EntryDetailScreen is visited, it contains pane below to which entries user transitions to.
- - Entry transitions are maintained by UserEntryTransitionHistory SQLite table (`entrytransitionhistory`).
-
-## Sources refresh
- - disabled sources should be skipped
- - sources that were fetched earlier than hour since source.date\_fetch should be skipped
- - should use order of sources by last fetched (or that never have been fetched)
- - should change date\_fetch, but only after attempt to read source has been made
- - if database is change, the worker should not process any older data for previous database
- - source.SourceOperationalDataRepository has page_hash (entire source hash), and body_hash (body, or entries hash). If it is not different than previous one, you can skip refresh, and mark as read
- - SourceOperationalDataRepository stores the amount of source entries, consecutive_errors contain the amount of consecutive errors. Is cleared when valid response is received.
- - source is marked as read when it's response is valid, if it is not consecutive errors counter is incremented
- - all links from sources (or from jobs) should pass through some EntryLinkBuilder (or similar). it shall check ConfigurationEntry if link of this type is accepted or not. ConfigurationEntry has fields to accept_domain_links, etc. It should also check entry rules, if are blocking entries
- - each entry inherits some properties of source (if source property is defined). language, age. if source.auto_tag is defined it should also add said tags
-
-# Jobs
- - There should be a background task. It should handle processing of jobs.
- - use information linkarchivetools.BackgroundJob to identify which kind of jobs there are
- - JOB_LINK_UPDATE_DATA = "link-update-data": updates properties from BaseUrl/RemoteUrl: link title, description, thumbnail, date_published, response status_code, author, album, language, etc. Only updates when url provides valid title, description etc. Adds a job to JOB_LINK_DOWNLOAD_SOCIAL. If link is not valid it should set date_dead_since. If it is valid, should clear it. If link is not acceptable using entry rules, it is removed
- - JOB_LINK_DOWNLOAD_SOCIAL - downloads social meta data (from url.get_social_properties)
- - When links are added by the user, this job is added to the background queue.
- - Worker thread processes this job by obtaining Url like in webtools_service.py (either BaseUrl or RemoteUrl).
- - Fetches BaseUrl.get_title(), BaseUrl.get_description() and updates entry(link) with these properties.
- - when there are no jobs, then check if any of source requires refresh, adds outdated jobs into queue, and starts processing them.
- - Jobs processing should be done as a separate python script. It shall process jobs
-
-# Databases management
-It should be possible to download a new database .db file from the internet, or elsewhere.
-
-# Code Requirements
- - prefer having small server functions that returns JSON data.
-    -- for example /api/source-disable/123 should disable source 123, and provide JSON response
- - provide interactive UI, that fetches data when necessary
- - use bootstrap 5, you can use javascript, jQuery
- - pages should be quite responsive. Not all page contents need to be refreshed when action is performed, some sections can be fetched as needed
- - prefer using css files for styles
- - when removing rows remember to remove rows that depend on it. For example some tables depend on linkdatamodel entries
- - Use small functions.
- - Keep classes small and focused.
- - Divide functionality into small files.
- - Give each class a clear responsibility.
- - Avoid duplicating database access logic.
- - Keep UI code separate from database and networking code.
- - Use repositories for database access.
- - Use appropriate abstractions for downloading files and fetching web pages.
- - Provide API documentation using Doxygen-style comments.
- - Document public classes.
- - Document public methods.
- - Document non-obvious implementation decisions.
- - Use descriptive names for classes, methods, and variables.
- - Prefer simple implementations over unnecessary abstractions.
- - Prefer simiplicity of calls and structure
- - When handling SQLite tables, then apply some storage limits. For example, we may store history of user searches. Do not allow for infinite growth, but allow only a fixed amount of entries to be added. New entries replace old ones. One exception is Entries. There is no limit for them
- - when creating views check if url can be accessed. Even if we don't have yet any 'permissions' we will be able to addd it later
- - consider batch operations to obtain data. There can be many rows in link database.
-
-# General Requirements
- - The application must remain usable when the device is offline.
- - use reasonable directory structure. UI elements, or components should have their directories, controller logic should be separated, model, etc.
- - Network operations must not block the UI thread.
- - Network failures must be handled gracefully.
- - Use webtoolkit.BaseUrl or webtoolkit.RemoteUrl to read links, RSS sources, parse sources
- - Database failures must be reported to the user (eg. SQLite errors).
- - Long-running operations must expose their current state.
- - Destructive operations must require user confirmation.
- - The application must preserve locally available databases when network operations fail.
- - The application must not modify a local database unless the user explicitly requests an update or refresh.
- - If a modification control cannot be hidden, it must be disabled.
- - if network is disabled network related widgets, like buttons should be not visible
