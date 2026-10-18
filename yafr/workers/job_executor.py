@@ -252,6 +252,13 @@ class JobExecutor:
             select(LinkDataModel)
             .where(LinkDataModel.link.isnot(None))
             .where(LinkDataModel.link != "")
+            .where(
+                # TODO this needs to be obtained from configuration
+                or_(
+                    LinkDataModel.date_update_last < one_day_ago,
+                    LinkDataModel.date_update_last.is_(None),
+                )
+            )
             .order_by(
                 LinkDataModel.date_update_last.asc().nullsfirst(),
                 LinkDataModel.id.asc(),
