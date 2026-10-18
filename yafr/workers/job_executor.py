@@ -7,7 +7,7 @@ archiving completed tasks to backgroundjobhistory, and falling back to source
 refreshing when the queue is empty.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import logging
 import threading
@@ -247,6 +247,8 @@ class JobExecutor:
         limit = config.number_of_update_entries
         if limit is not None and limit <= 0:
             return None
+
+        one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
 
         stmt = (
             select(LinkDataModel)
