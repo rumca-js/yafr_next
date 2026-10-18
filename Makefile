@@ -5,6 +5,10 @@
 # Python environment runner
 PYTHON := poetry run python
 
+server:
+	@$(PYTHON) process_jobs.py &
+	@$(PYTHON) run.py
+
 ## run: Start the YAFR Flask development server
 run:
 	@$(PYTHON) run.py

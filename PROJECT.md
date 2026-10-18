@@ -362,6 +362,7 @@ The screen displays, where available:
     -- Edit.
     -- Remove.
  - The Fetch action downloads the source content from the internet.
+     button should not be active, if it is fetch job (process-source) in jobs
  - The source content is expected to be RSS or a compatible feed.
  - Entries are extracted from the source content.
  - Extracted entries are inserted into the linkdatamodel table.
