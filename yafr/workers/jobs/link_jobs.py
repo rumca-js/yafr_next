@@ -273,6 +273,10 @@ class LinkDownloadSocialJobHandler(BaseJobHandler):
                 else {}
             ) or {}
 
+            """
+            TODO fix that
+            store social data in socialdata table
+
             if social_data:
                 if social_data.get("rating") is not None:
                     try:
@@ -290,6 +294,7 @@ class LinkDownloadSocialJobHandler(BaseJobHandler):
                     except (ValueError, TypeError):
                         pass
                 session.commit()
+            """
 
             return {
                 "success": True,
