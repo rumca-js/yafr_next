@@ -6,7 +6,7 @@
 PYTHON := poetry run python
 
 server:
-	@$(PYTHON) main.py
+	@$(PYTHON) main.py --port 4006
 
 ## run: Start the YAFR Flask development server
 run:

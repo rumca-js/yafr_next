@@ -94,64 +94,6 @@
   <div class="card mb-4 shadow-sm border" id="entry-detail-card" data-entry-id="{{ entry.id }}">
     <div class="card-body p-4">
       
-      <!-- Badges Header Bar -->
-      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <!-- Status Badge -->
-        <span id="detail-status-badge">
-          {% if is_dead %}
-            <span class="badge bg-danger shadow-sm">
-              <i class="bi bi-skull me-1"></i>Dead Link ({{ entry.manual_status_code or entry.status_code or 400 }})
-            </span>
-          {% else %}
-            <span class="badge bg-success-subtle text-success border border-success-subtle shadow-sm">
-              <i class="bi bi-check-circle me-1"></i>Active ({{ entry.manual_status_code or entry.status_code or 200 }})
-            </span>
-          {% endif %}
-        </span>
-
-        <!-- Rating / Votes Badge -->
-        <span class="badge bg-warning-subtle text-warning-emphasis border shadow-sm">
-          <i class="bi bi-star-fill text-warning me-1"></i>Score: 
-          <strong class="score-badge detail-score-badge" data-id="{{ entry.id }}">{{ entry.page_rating_votes or 0 }}</strong>
-        </span>
-
-        <!-- Read Later Badge -->
-        <span id="detail-read-later-badge" class="badge {% if is_read_later %}bg-primary{% else %}bg-secondary-subtle text-secondary border{% endif %} shadow-sm">
-          <i class="bi bi-clock{{ '-fill' if is_read_later else '' }} me-1"></i>{{ 'Read Later' if is_read_later else 'Not in Read Later' }}
-        </span>
-
-        <!-- Bookmark Badge -->
-        <span id="detail-bookmark-badge" class="badge {% if is_bookmarked %}bg-warning text-dark{% else %}bg-secondary-subtle text-secondary border{% endif %} shadow-sm">
-          <i class="bi bi-bookmark{{ '-fill' if is_bookmarked else '' }} me-1"></i>{{ 'Bookmarked' if is_bookmarked else 'Not Bookmarked' }}
-        </span>
-
-        <!-- Language Badge -->
-        {% if entry.language %}
-          <span class="badge bg-dark bg-opacity-75 text-uppercase shadow-sm">
-            <i class="bi bi-translate me-1"></i>{{ entry.language }}
-          </span>
-        {% endif %}
-
-        <!-- Age Warning Badge -->
-        {% if entry.age and entry.age > 0 %}
-          <span class="badge bg-danger shadow-sm" title="Age restricted content">
-            <i class="bi bi-exclamation-octagon me-1"></i>Age {{ entry.age }}+
-          </span>
-        {% endif %}
-
-        <!-- Visits Counter -->
-        <span class="badge bg-body-secondary text-secondary border shadow-sm">
-          <i class="bi bi-eye me-1"></i>{{ entry.page_rating_visits or 0 }} visits
-        </span>
-
-        <!-- Publication Date -->
-        {% if entry.date_published %}
-          <span class="badge bg-body-secondary text-secondary border shadow-sm">
-            <i class="bi bi-calendar3 me-1"></i>Published: {{ entry.date_published.strftime('%b %d, %Y %H:%M') }}
-          </span>
-        {% endif %}
-      </div>
-
       <!-- Title -->
       <h1 class="h3 fw-bold mb-3 text-body-emphasis">
         {{ entry.title or entry.link }}
@@ -194,6 +136,43 @@
             <i class="bi bi-box-arrow-up-right me-1"></i>Open Website
           </a>
         </div>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <!-- Publication Date -->
+        {% if entry.date_published %}
+          <span class="badge bg-body-secondary text-secondary border shadow-sm">
+            <i class="bi bi-calendar3 me-1"></i>Published: {{ entry.date_published.strftime('%b %d, %Y %H:%M') }}
+          </span>
+        {% endif %}
+
+        <!-- Status Badge -->
+        <span id="detail-status-badge">
+          {% if is_dead %}
+            <span class="badge bg-danger shadow-sm">
+              <i class="bi bi-skull me-1"></i>Dead Link ({{ entry.manual_status_code or entry.status_code or 400 }})
+            </span>
+          {% endif %}
+        </span>
+
+        <!-- Language Badge -->
+        {% if entry.language %}
+          <span class="badge bg-dark bg-opacity-75 text-uppercase shadow-sm">
+            <i class="bi bi-translate me-1"></i>{{ entry.language }}
+          </span>
+        {% endif %}
+
+        <!-- Age Warning Badge -->
+        {% if entry.age and entry.age > 0 %}
+          <span class="badge bg-danger shadow-sm" title="Age restricted content">
+            <i class="bi bi-exclamation-octagon me-1"></i>Age {{ entry.age }}+
+          </span>
+        {% endif %}
+
+        <!-- Visits Counter -->
+        <span class="badge bg-body-secondary text-secondary border shadow-sm">
+          <i class="bi bi-eye me-1"></i>{{ entry.page_rating_visits or 0 }} visits
+        </span>
       </div>
 
       <!-- Primary Action Buttons Row -->
@@ -281,13 +260,13 @@
           <i class="bi bi-pencil me-1"></i>Edit
         </a>
 
-        <!-- Search / URL Preview -->
+        <!-- URL Preview -->
         <a 
           href="{{ url_for('entries.search_view', q='url=' ~ entry.link) }}" 
           class="btn btn-sm btn-outline-secondary rounded-pill px-3"
           title="Search entries with this URL"
         >
-          <i class="bi bi-search me-1"></i>Search URL
+          <i class="bi bi-search me-1"></i>URL Preview
         </a>
 
         <!-- Delete Entry -->
@@ -302,34 +281,11 @@
         </button>
       </div>
 
-      <!-- Description Section -->
-      <div class="mb-4">
-        <h6 class="fw-bold text-secondary text-uppercase small mb-2">Description</h6>
-        <div class="p-3 bg-body rounded border selectable-text" style="user-select: text; -webkit-user-select: text; white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6;">
-          {% if entry.description %}
-            {{ entry.description | urlize(target="_blank", rel="noopener noreferrer") | safe }}
-          {% else %}
-            <span class="text-muted fst-italic">No description available for this entry.</span>
-          {% endif %}
-        </div>
-      </div>
-
       <!-- Tags Section -->
       <div class="mb-4">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="fw-bold text-secondary text-uppercase small mb-0">Tags</h6>
-          <button 
-            type="button" 
-            class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-0 btn-edit-tags" 
-            data-bs-toggle="modal" 
-            data-bs-target="#editTagsModal"
-            title="Edit tags for this entry"
-          >
-            <i class="bi bi-pencil me-1"></i>Edit Tags
-          </button>
-        </div>
-
         <div class="d-flex flex-wrap gap-2 align-items-center" id="detail-tags-container">
+          <span class="fw-bold text-secondary text-uppercase small">Tags</span>
+
           {% if tags %}
             {% for tag in tags %}
               <a 
@@ -342,7 +298,18 @@
           {% else %}
             <span class="text-muted small fst-italic" id="no-tags-placeholder">No tags assigned. Click "Edit Tags" to add tags.</span>
           {% endif %}
+
+          <button 
+            type="button" 
+            class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-0 btn-edit-tags" 
+            data-bs-toggle="modal" 
+            data-bs-target="#editTagsModal"
+            title="Edit tags for this entry"
+          >
+            <i class="bi bi-pencil"></i>
+          </button>
         </div>
+
       </div>
 
       <!-- Source and Author Information -->
@@ -377,6 +344,19 @@
           </div>
         </div>
       </div>
+
+      <!-- Description Section -->
+      <div class="mb-4">
+        <h6 class="fw-bold text-secondary text-uppercase small mb-2">Description</h6>
+        <div class="p-3 bg-body rounded border selectable-text" style="user-select: text; -webkit-user-select: text; white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6;">
+          {% if entry.description %}
+            {{ entry.description | urlize(target="_blank", rel="noopener noreferrer") | safe }}
+          {% else %}
+            <span class="text-muted fst-italic">No description available for this entry.</span>
+          {% endif %}
+        </div>
+      </div>
+
 
     </div>
   </div>
