@@ -25,8 +25,6 @@
  - if database file is replaced, how thread should be restarted?
  - provide ability to block entries (blockentries tbale)
  - provide ability to add many sources
- - provide dbupdate scripts
  - page properties tool
  - source list: order by errors
- - user should be able to trigger link update
 
