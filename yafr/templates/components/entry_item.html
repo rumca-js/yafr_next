@@ -34,12 +34,17 @@
       </div>
     {% endif %}
 
-    <!-- Top Badges Overlay (Skull, Bookmark, Language) -->
+    <!-- Top Badges Overlay (Skull, Bookmark, Language, Age) -->
     <div class="gallery-badges-top">
       <div>
         {% if is_dead %}
           <span class="badge bg-danger shadow-sm" title="Dead link">
             <i class="bi bi-skull me-1"></i>Dead
+          </span>
+        {% endif %}
+        {% if entry.age and entry.age > 0 %}
+          <span class="badge bg-warning text-dark shadow-sm" title="Age restricted content">
+            <i class="bi bi-exclamation-octagon me-1"></i>{{ entry.age }}+
           </span>
         {% endif %}
       </div>
@@ -172,6 +177,11 @@
           {% if entry.language %}
             <span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ entry.language }}</span>
           {% endif %}
+          {% if entry.age and entry.age > 0 %}
+            <span class="badge bg-warning text-dark" title="Age restricted content">
+              <i class="bi bi-exclamation-octagon me-1"></i>{{ entry.age }}+
+            </span>
+          {% endif %}
           {% if is_dead %}
             <span class="badge bg-danger"><i class="bi bi-skull me-1"></i>Dead</span>
           {% endif %}
@@ -259,6 +269,12 @@
       <span class="badge bg-secondary-subtle text-secondary">{{ entry.language }}</span>
       <span>&middot;</span>
     {% endif %}
+    {% if entry.age and entry.age > 0 %}
+      <span class="badge bg-warning text-dark" title="Age restricted content">
+        <i class="bi bi-exclamation-octagon me-1"></i>{{ entry.age }}+
+      </span>
+      <span>&middot;</span>
+    {% endif %}
 
     {% for tag in entry_tags[:5] %}
       <a href="{{ url_for('entries.search_view', q='tag:' ~ tag) }}" class="badge bg-body-secondary text-secondary text-decoration-none">
@@ -311,6 +327,11 @@
       {% endif %}
       {% if entry.language %}
         <span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ entry.language }}</span>
+      {% endif %}
+      {% if entry.age and entry.age > 0 %}
+        <span class="badge bg-warning text-dark" title="Age restricted content">
+          <i class="bi bi-exclamation-octagon me-1"></i>{{ entry.age }}+
+        </span>
       {% endif %}
     </div>
 
@@ -373,6 +394,9 @@
       <i class="bi bi-clock text-primary" title="Read later"></i>
     {% else %}
       <i class="bi bi-link-45deg text-secondary"></i>
+    {% endif %}
+    {% if entry.age and entry.age > 0 %}
+      <span class="badge bg-warning text-dark ms-1" title="Age {{ entry.age }}+ content">{{ entry.age }}+</span>
     {% endif %}
   </td>
   <td>

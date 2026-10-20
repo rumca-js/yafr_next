@@ -113,11 +113,14 @@ def get_shared_context() -> Dict[str, Any]:
     sources_outdated = 0
     sources_errors = 0
     jobs_errors = 0
+    instance_title = "YAFR"
 
     try:
         config_repo = ConfigRepository()
         active_theme = config_repo.get_display_style()
         display_type = config_repo.get_display_type()
+        config = config_repo.get_config()
+        instance_title = (config.instance_title or "YAFR").strip() or "YAFR"
 
         source_repo = SourceRepository()
         sources_outdated = source_repo.count_outdated_sources()
@@ -129,7 +132,7 @@ def get_shared_context() -> Dict[str, Any]:
         logger.debug("Could not read shared context from DB (using defaults): %s", err)
 
     return {
-        "app_name": "YAFR",
+        "app_name": instance_title,
         "app_tagline": "Yet Another Feed Reader",
         "entry_filters": ENTRY_FILTERS,
         "active_theme": active_theme,
