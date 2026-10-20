@@ -15,6 +15,7 @@ from linkarchivetools.model.definitions import (
     BackgroundJobHistory,
     LinkDataModel,
     SearchHistory,
+    SocialData,
     SourcesTable,
 )
 from yafr.app import create_app
@@ -174,7 +175,7 @@ class TestJobExecutor(unittest.TestCase):
         self.assertIsNotNone(updated_entry.date_dead_since)
 
     def test_process_link_download_social_job(self):
-        """JobExecutor processes link-download-social task and updates entry rating and visits."""
+        """JobExecutor processes link-download-social task and stores data in socialdata table."""
         entry = self.entry_repo.add_entry(
             link="https://example.com/social-entry",
             title="Social Test",
@@ -195,7 +196,13 @@ class TestJobExecutor(unittest.TestCase):
             mock_client.get_social_properties.return_value = {
                 "rating": 4.8,
                 "thumbs_up": 120,
+                "thumbs_down": 5,
                 "view_count": 3500,
+                "upvote_ratio": 0.96,
+                "upvote_diff": 115,
+                "upvote_view_ratio": 0.034,
+                "stars": None,
+                "followers_count": 1000,
             }
             mock_webtools_cls.return_value = mock_client
 
@@ -203,10 +210,15 @@ class TestJobExecutor(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertTrue(result["success"])
-        updated = self.entry_repo.get_by_id(entry_id)
-        self.assertEqual(updated.page_rating, 4.8)
-        self.assertEqual(updated.page_rating_votes, 120)
-        self.assertEqual(updated.page_rating_visits, 3500)
+
+        social = self.entry_repo.get_social_data(entry_id)
+        self.assertIsNotNone(social)
+        self.assertEqual(social.thumbs_up, 120)
+        self.assertEqual(social.thumbs_down, 5)
+        self.assertEqual(social.view_count, 3500)
+        self.assertEqual(social.upvote_diff, 115)
+        self.assertEqual(social.followers_count, 1000)
+        self.assertIsNotNone(social.date_updated)
 
     def test_enqueue_outdated_jobs(self):
         """enqueue_outdated_jobs enqueues process-source jobs for outdated sources."""

@@ -235,8 +235,10 @@ class LinkDownloadSocialJobHandler(BaseJobHandler):
     """
     Handler for JOB_LINK_DOWNLOAD_SOCIAL ('link-download-social').
 
-    Downloads social metadata via WebToolsWrapper.get_social_properties() and updates
-    rating / visit counters on the entry.
+    Downloads social metadata via WebToolsWrapper.get_social_properties() and upserts
+    the result into the socialdata table (linked by entry_id). Fields mapped:
+    followers_count, thumbs_up, thumbs_down, view_count, rating, upvote_ratio,
+    upvote_diff, upvote_view_ratio, stars, date_updated.
     """
 
     job_types = (JOB_LINK_DOWNLOAD_SOCIAL, "JOB_LINK_DOWNLOAD_SOCIAL")
@@ -273,28 +275,58 @@ class LinkDownloadSocialJobHandler(BaseJobHandler):
                 else {}
             ) or {}
 
-            """
-            TODO fix that
-            store social data in socialdata table
-
             if social_data:
-                if social_data.get("rating") is not None:
+                # Upsert social data into the socialdata table
+                social_record = entry_repo.get_social_data(entry.id)
+                if social_record is None:
+                    from linkarchivetools.model.definitions import SocialData
+
+                    social_record = SocialData(entry_id=entry.id)
+                    session.add(social_record)
+
+                def _to_int(val: Any) -> Optional[int]:
                     try:
-                        entry.page_rating = float(social_data["rating"])
+                        return int(val) if val is not None else None
                     except (ValueError, TypeError):
-                        pass
-                if social_data.get("thumbs_up") is not None:
+                        return None
+
+                def _to_float(val: Any) -> Optional[float]:
                     try:
-                        entry.page_rating_votes = int(social_data["thumbs_up"])
+                        return float(val) if val is not None else None
                     except (ValueError, TypeError):
-                        pass
-                if social_data.get("view_count") is not None:
-                    try:
-                        entry.page_rating_visits = int(social_data["view_count"])
-                    except (ValueError, TypeError):
-                        pass
+                        return None
+
+                thumbs_up = _to_int(social_data.get("thumbs_up"))
+                thumbs_down = _to_int(social_data.get("thumbs_down"))
+                view_count = _to_int(social_data.get("view_count"))
+                rating = _to_float(social_data.get("rating"))
+                upvote_ratio = _to_float(social_data.get("upvote_ratio"))
+                upvote_diff = _to_int(social_data.get("upvote_diff"))
+                upvote_view_ratio = _to_float(social_data.get("upvote_view_ratio"))
+                stars = _to_float(social_data.get("stars"))
+                followers_count = _to_int(social_data.get("followers_count"))
+
+                if thumbs_up is not None:
+                    social_record.thumbs_up = thumbs_up
+                if thumbs_down is not None:
+                    social_record.thumbs_down = thumbs_down
+                if view_count is not None:
+                    social_record.view_count = view_count
+                if rating is not None:
+                    social_record.rating = rating
+                if upvote_ratio is not None:
+                    social_record.upvote_ratio = upvote_ratio
+                if upvote_diff is not None:
+                    social_record.upvote_diff = upvote_diff
+                if upvote_view_ratio is not None:
+                    social_record.upvote_view_ratio = upvote_view_ratio
+                if stars is not None:
+                    social_record.stars = stars
+                if followers_count is not None:
+                    social_record.followers_count = followers_count
+
+                social_record.date_updated = datetime.now(timezone.utc)
                 session.commit()
-            """
 
             return {
                 "success": True,
