@@ -210,19 +210,26 @@ def entry_detail_view(id: int):
                     }
                 )
 
-    # Rich media / YouTube video playback embed detection
+    # Rich media embed detection: YouTube and Odysee
     embed_url = None
     is_youtube = False
+    is_odysee = False
     try:
         from webtoolkit import UrlLocation, YouTubeVideoHandler
+        from webtoolkit.handlers.handlervideoodysee import OdyseeVideoHandler
 
         url_loc = UrlLocation(entry.link)
         if url_loc.is_youtube():
             is_youtube = True
             yt_handler = YouTubeVideoHandler(entry.link)
             embed_url = yt_handler.get_link_embed()
+        else:
+            odysee_handler = OdyseeVideoHandler(entry.link)
+            if odysee_handler.is_handled_by():
+                is_odysee = True
+                embed_url = odysee_handler.get_link_embed()
     except Exception as err:
-        logger.debug("Webtoolkit YouTube detection exception: %s", err)
+        logger.debug("Webtoolkit embed detection exception: %s", err)
 
     # Fallback regex for YouTube embed URL
     if is_youtube and not embed_url:
@@ -247,6 +254,7 @@ def entry_detail_view(id: int):
         is_dead=is_dead,
         transitions=transitions_data,
         is_youtube=is_youtube,
+        is_odysee=is_odysee,
         embed_url=embed_url,
         domain=domain,
         config=config,
