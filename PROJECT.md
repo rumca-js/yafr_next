@@ -223,6 +223,9 @@ It should be indicated if there are problems with Sources, or Jobs, if there are
 
  click_behavior_modal_window is used to load a modal windoww for preview (for youtube etc.)
 
+ - Configuration view should contain presets for type of initialization
+ - should provide means to configure and view credentials
+
 ## EntriesListView
  - if user did not input anything the input text should be quite big, and in the middle. If user enters anything the search should be above
  - Provides search widget with text input

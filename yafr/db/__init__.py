@@ -4,6 +4,7 @@ Database and Repository Layer Package Exports for YAFR.
 
 from yafr.db.base_repository import BaseRepository
 from yafr.db.config_repository import ConfigRepository
+from yafr.db.credentials_repository import CredentialsRepository
 from yafr.db.entry_repository import EntryRepository
 from yafr.db.history_repository import HistoryRepository
 from yafr.db.job_repository import JobRepository
@@ -28,6 +29,7 @@ __all__ = [
     "session_scope",
     "BaseRepository",
     "ConfigRepository",
+    "CredentialsRepository",
     "EntryRepository",
     "SourceRepository",
     "JobRepository",
