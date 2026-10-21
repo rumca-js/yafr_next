@@ -3,7 +3,7 @@ SQLAlchemy Query Builder for Sources Search in YAFR.
 
 Translates ParsedQuery AST tokens into indexed SQLAlchemy expressions,
 applying operators ('=', '=='), joins with SourceOperationalData,
-system filters ('url', 'title', 'fetch_time'), explicit ordering, and pagination.
+system filters ('url', 'title', 'fetch_time', 'errors'), explicit ordering, and pagination.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -25,6 +25,7 @@ SOURCE_FILTERS = [
     {"id": "url", "name": "by URL", "default": True},
     {"id": "title", "name": "by Title", "default": False},
     {"id": "fetch_time", "name": "by Fetch time", "default": False},
+    {"id": "errors", "name": "by Errors", "default": False},
 ]
 
 
@@ -211,12 +212,20 @@ class SourceSearchQueryBuilder:
                 return stmt.order_by(
                     SourceOperationalData.date_fetched.desc().nullslast()
                 )
+            if clean_order in ("errors", "consecutive_errors"):
+                return stmt.order_by(
+                    SourceOperationalData.consecutive_errors.desc().nullslast()
+                )
 
         # Active filter ordering
         if filter_id == "title":
             return stmt.order_by(SourcesTable.title.asc())
         elif filter_id == "fetch_time":
             return stmt.order_by(SourceOperationalData.date_fetched.desc().nullslast())
+        elif filter_id == "errors":
+            return stmt.order_by(
+                SourceOperationalData.consecutive_errors.desc().nullslast()
+            )
         else:
             # Default by URL
             return stmt.order_by(SourcesTable.url.asc())

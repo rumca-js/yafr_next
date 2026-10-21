@@ -28,25 +28,19 @@
         </button>
       </div>
 
-      <!-- Filters Selection (by URL, by Title, by Fetch time) -->
+      <!-- Order Selection (by URL, by Title, by Fetch time) -->
       <div class="d-flex flex-wrap justify-content-center align-items-center gap-2 mt-3">
-        <span class="text-secondary small me-1">Sort & Filter:</span>
-        <div class="btn-group" role="group" aria-label="Source filter">
+        <label for="order-select-main" class="text-secondary small me-1">Order:</label>
+        <select
+          name="order"
+          id="order-select-main"
+          class="form-select form-select-sm w-auto rounded-pill"
+          onchange="this.form.submit()"
+        >
           {% for f in filters %}
-            <input 
-              type="radio" 
-              class="btn-check" 
-              name="filter" 
-              id="filter-{{ f.id }}" 
-              value="{{ f.id }}"
-              autocomplete="off"
-              {% if f.id == active_filter %}checked{% endif %}
-            >
-            <label class="btn btn-outline-secondary btn-sm" for="filter-{{ f.id }}">
-              {{ f.name }}
-            </label>
+            <option value="{{ f.id }}" {% if f.id == active_filter %}selected{% endif %}>{{ f.name }}</option>
           {% endfor %}
-        </div>
+        </select>
       </div>
     </form>
 
@@ -138,25 +132,21 @@
         </div>
       </div>
 
-      <!-- Filter Dropdown & Action Buttons -->
+      <!-- Order Select & Action Buttons -->
       <div class="col-12 col-md-7 col-lg-6 d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
-        <!-- Filter Dropdown -->
-        <div class="dropdown">
-          <button class="btn btn-outline-secondary btn-sm dropdown-toggle rounded-pill" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-funnel me-1"></i>
+        <!-- Order Select -->
+        <div class="d-flex align-items-center gap-1">
+          <label for="order-select-top" class="text-secondary small mb-0">Order:</label>
+          <select
+            name="order"
+            id="order-select-top"
+            class="form-select form-select-sm w-auto rounded-pill"
+            onchange="this.form.submit()"
+          >
             {% for f in filters %}
-              {% if f.id == active_filter %}{{ f.name }}{% endif %}
+              <option value="{{ f.id }}" {% if f.id == active_filter %}selected{% endif %}>{{ f.name }}</option>
             {% endfor %}
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end shadow">
-            {% for f in filters %}
-              <li>
-                <a class="dropdown-item {% if f.id == active_filter %}active{% endif %}" href="{{ url_for('sources.sources_list', q=query, all='1' if show_all else None, filter=f.id) }}">
-                  {{ f.name }}
-                </a>
-              </li>
-            {% endfor %}
-          </ul>
+          </select>
         </div>
 
         <!-- Add Source Dropdown -->

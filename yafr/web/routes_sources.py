@@ -33,14 +33,14 @@ def sources_list():
       displays search widget at top with sources list, badges, and controls.
     """
     query = request.args.get("q", "").strip()
-    active_filter = request.args.get("filter", "url")
+    active_filter = request.args.get("order", "url")
     show_all = request.args.get("all") == "1"
     page = max(1, request.args.get("page", 1, type=int))
     has_query = (
         ("q" in request.args)
         or show_all
         or ("page" in request.args)
-        or ("filter" in request.args)
+        or ("order" in request.args)
         or bool(query)
     )
 
@@ -74,6 +74,11 @@ def sources_list():
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=3600)
     outdated_count = source_repo.count_outdated_sources(max_age_seconds=3600)
     error_count = source_repo.count_error_sources()
+
+    # Check whether any sources exist at all (to skip the search UI when empty)
+    total_sources_in_db = session.execute(
+        select(func.count(SourcesTable.id))
+    ).scalar_one()
 
     # Get set of all currently outdated source IDs
     outdated_stmt = (
@@ -112,6 +117,7 @@ def sources_list():
         total_pages=total_pages,
         per_page=per_page,
         dead_alpha=dead_alpha,
+        total_sources_in_db=total_sources_in_db,
     )
 
 

@@ -11,6 +11,29 @@
 {% block content %}
 <div class="container-fluid px-4">
 
+  {% if total_sources_in_db == 0 %}
+    <!-- No Sources At All: skip search widget, show simple empty state -->
+    <div class="row justify-content-center align-items-center min-vh-75 py-5">
+      <div class="col-12 col-md-8 col-lg-6 text-center">
+        <i class="bi bi-rss display-1 text-secondary opacity-50 d-block mb-4"></i>
+        <h2 class="fw-bold mb-2">No Sources Yet</h2>
+        <p class="text-secondary mb-4">Add your first RSS feed, email newsletter, or parse source to get started.</p>
+        <div class="d-flex flex-wrap justify-content-center gap-2">
+          <a href="{{ url_for('sources.source_add_rss') }}" class="btn btn-primary rounded-pill px-4">
+            <i class="bi bi-rss me-1"></i>Add RSS Feed
+          </a>
+          <a href="{{ url_for('sources.source_add_email') }}" class="btn btn-outline-secondary rounded-pill px-4">
+            <i class="bi bi-envelope me-1"></i>Add Email Source
+          </a>
+          <a href="{{ url_for('sources.source_add_parse') }}" class="btn btn-outline-secondary rounded-pill px-4">
+            <i class="bi bi-code-slash me-1"></i>Add Parse Source
+          </a>
+        </div>
+      </div>
+    </div>
+
+  {% else %}
+
   <!-- Source Search Widget Component -->
   {% include "components/source_search_widget.html" %}
 
@@ -124,7 +147,7 @@
               <ul class="pagination pagination-sm flex-wrap justify-content-center">
                 <!-- Previous Button -->
                 <li class="page-item {% if page <= 1 %}disabled{% endif %}">
-                  <a class="page-link" href="{{ url_for('sources.sources_list', q=query, all='1' if show_all else None, filter=active_filter, page=page - 1) }}" aria-label="Previous">
+                  <a class="page-link" href="{{ url_for('sources.sources_list', q=query, all='1' if show_all else None, order=active_filter, page=page - 1) }}" aria-label="Previous">
                     &laquo; Prev
                   </a>
                 </li>
@@ -138,7 +161,7 @@
 
                 {% for p in range(start_p, end_p + 1) %}
                   <li class="page-item {% if p == page %}active{% endif %}">
-                    <a class="page-link" href="{{ url_for('sources.sources_list', q=query, all='1' if show_all else None, filter=active_filter, page=p) }}">
+                    <a class="page-link" href="{{ url_for('sources.sources_list', q=query, all='1' if show_all else None, order=active_filter, page=p) }}">
                       {{ p }}
                     </a>
                   </li>
@@ -146,7 +169,7 @@
 
                 <!-- Next Button -->
                 <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
-                  <a class="page-link" href="{{ url_for('sources.sources_list', q=query, all='1' if show_all else None, filter=active_filter, page=page + 1) }}" aria-label="Next">
+                  <a class="page-link" href="{{ url_for('sources.sources_list', q=query, all='1' if show_all else None, order=active_filter, page=page + 1) }}" aria-label="Next">
                     Next &raquo;
                   </a>
                 </li>
@@ -158,6 +181,7 @@
 
       </div>
     </div>
+  {% endif %}
   {% endif %}
 
 </div>
@@ -197,7 +221,6 @@
       </div>
     </div>
   </div>
-</div>
 
 <!-- Modal: Delete Single Source Confirmation -->
 <div class="modal fade" id="deleteSourceModal" tabindex="-1" aria-labelledby="deleteSourceModalLabel" aria-hidden="true">
@@ -226,7 +249,6 @@
       </div>
     </div>
   </div>
-</div>
 
 <!-- Modal: Batch Delete Confirmation -->
 <div class="modal fade" id="batchDeleteModal" tabindex="-1" aria-labelledby="batchDeleteModalLabel" aria-hidden="true">
@@ -255,6 +277,7 @@
       </div>
     </div>
   </div>
+
 </div>
 {% endblock %}
 

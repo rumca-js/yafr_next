@@ -67,15 +67,10 @@
   </div>
 
   <!-- 1. Rich Media / Video Playback Frame / Thumbnail -->
-  {% if (is_youtube or is_odysee) and embed_url %}
+  {% if embed_iframe %}
     <div class="card mb-4 shadow-sm border overflow-hidden">
       <div class="ratio ratio-16x9 bg-black">
-        <iframe 
-          src="{{ embed_url }}" 
-          title="{{ entry.title or ('YouTube Video Player' if is_youtube else 'Odysee Video Player') }}" 
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-          allowfullscreen
-        ></iframe>
+        {{ embed_iframe | safe }}
       </div>
     </div>
   {% elif entry.thumbnail and (config.show_icons if config and config.show_icons is not none else true) %}

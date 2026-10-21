@@ -210,34 +210,44 @@ def entry_detail_view(id: int):
                     }
                 )
 
-    # Rich media embed detection: YouTube and Odysee
+    # Rich media embed detection: YouTube and Odysee.
+    # Build a full iframe HTML string so the template only needs to check embed_iframe.
     embed_url = None
-    is_youtube = False
-    is_odysee = False
+    embed_title = entry.title or "Video Player"
     try:
         from webtoolkit import UrlLocation, YouTubeVideoHandler
         from webtoolkit.handlers.handlervideoodysee import OdyseeVideoHandler
 
         url_loc = UrlLocation(entry.link)
         if url_loc.is_youtube():
-            is_youtube = True
             yt_handler = YouTubeVideoHandler(entry.link)
             embed_url = yt_handler.get_link_embed()
         else:
             odysee_handler = OdyseeVideoHandler(entry.link)
             if odysee_handler.is_handled_by():
-                is_odysee = True
                 embed_url = odysee_handler.get_link_embed()
     except Exception as err:
         logger.debug("Webtoolkit embed detection exception: %s", err)
 
     # Fallback regex for YouTube embed URL
-    if is_youtube and not embed_url:
+    if not embed_url:
         yt_match = re.search(
             r"(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})", entry.link
         )
         if yt_match:
             embed_url = f"https://www.youtube.com/embed/{yt_match.group(1)}"
+
+    # Build the iframe element if an embed URL was resolved
+    embed_iframe = None
+    if embed_url:
+        embed_iframe = (
+            f'<iframe'
+            f' src="{embed_url}"'
+            f' title="{embed_title}"'
+            f' allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"'
+            f' allowfullscreen'
+            f'></iframe>'
+        )
 
     # Parse domain for external research tools (Wayback Machine, Schema, Whois)
     parsed_url = urlparse(entry.link)
@@ -253,9 +263,7 @@ def entry_detail_view(id: int):
         is_bookmarked=is_bookmarked,
         is_dead=is_dead,
         transitions=transitions_data,
-        is_youtube=is_youtube,
-        is_odysee=is_odysee,
-        embed_url=embed_url,
+        embed_iframe=embed_iframe,
         domain=domain,
         config=config,
     )
