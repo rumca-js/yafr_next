@@ -65,7 +65,6 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
         try:
             # Obtain Url handler via WebToolsWrapper (either BaseUrl or RemoteUrl)
             web_client = WebToolsWrapper(url=entry.link, session=session, timeout_s=15)
-            url_handler = getattr(web_client, "url_handler", None)
 
             response = web_client.get_response()
             if response is None:
@@ -79,86 +78,56 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
                     "error": f"Failed to fetch content from {entry.link}",
                 }
 
-            if hasattr(web_client, "is_valid") and not web_client.is_valid():
+            if not response.is_valid():
+                # Response received but HTTP error — mark dead, record status, do not update metadata
+                status_code = response.get_status_code() if hasattr(response, "get_status_code") else None
+                if status_code:
+                    entry.status_code = status_code
                 if not entry.date_dead_since:
                     entry.date_dead_since = datetime.now(timezone.utc)
-            else:
-                entry.date_dead_since = None
+                entry.date_update_last = datetime.now(timezone.utc)
+                session.commit()
+                return {
+                    "success": False,
+                    "status": "error",
+                    "error": f"HTTP error {status_code} fetching {entry.link}",
+                }
 
-            if web_client.is_valid():
-                # Fetch BaseUrl / RemoteUrl metadata directly via webtoolkit
-                title = web_client.get_title() if hasattr(web_client, "get_title") else None
-                if not title and url_handler and hasattr(url_handler, "get_title"):
-                    title = url_handler.get_title()
+            # Response is valid — clear dead marker and update metadata
+            entry.date_dead_since = None
 
-                description = (
-                    web_client.get_description()
-                    if hasattr(web_client, "get_description")
-                    else None
-                )
-                if not description and url_handler and hasattr(url_handler, "get_description"):
-                    description = url_handler.get_description()
+            # Fetch BaseUrl / RemoteUrl metadata directly via webtoolkit
+            title = web_client.get_title()
+            description = web_client.get_description()
+            date_published = web_client.get_date_published()
+            author = web_client.get_author()
+            album = web_client.get_album()
+            language = web_client.get_language()
+            thumbnail = web_client.get_thumbnail()
 
-                date_published = (
-                    web_client.get_date_published()
-                    if hasattr(web_client, "get_date_published")
-                    else None
-                )
-                if not date_published and url_handler and hasattr(url_handler, "get_date_published"):
-                    date_published = url_handler.get_date_published()
+            # Update entry properties only when webtoolkit returns a value
+            if title and str(title).strip():
+                entry.title = str(title).strip()
+            if description and str(description).strip():
+                entry.description = str(description).strip()
+            if date_published:
+                if isinstance(date_published, str) and date_published.strip():
+                    try:
+                        entry.date_published = datetime.fromisoformat(date_published.strip())
+                    except Exception:
+                        pass
+                elif isinstance(date_published, datetime):
+                    entry.date_published = date_published
+            if author and str(author).strip():
+                entry.author = str(author).strip()
+            if album and str(album).strip():
+                entry.album = str(album).strip()
+            if language and str(language).strip():
+                entry.language = str(language).strip()
+            if thumbnail and str(thumbnail).strip():
+                entry.thumbnail = str(thumbnail).strip()
 
-                author = web_client.get_author() if hasattr(web_client, "get_author") else None
-                if not author and url_handler and hasattr(url_handler, "get_author"):
-                    author = url_handler.get_author()
-
-                album = web_client.get_album() if hasattr(web_client, "get_album") else None
-                if not album and url_handler and hasattr(url_handler, "get_album"):
-                    album = url_handler.get_album()
-
-                language = (
-                    web_client.get_language()
-                    if hasattr(web_client, "get_language")
-                    else None
-                )
-                if not language and url_handler and hasattr(url_handler, "get_language"):
-                    language = url_handler.get_language()
-
-                thumbnail = (
-                    web_client.get_thumbnail()
-                    if hasattr(web_client, "get_thumbnail")
-                    else None
-                )
-                if not thumbnail and url_handler and hasattr(url_handler, "get_thumbnail"):
-                    thumbnail = url_handler.get_thumbnail()
-
-                # Update entry properties
-                if title and str(title).strip():
-                    entry.title = str(title).strip()
-                if description and str(description).strip():
-                    entry.description = str(description).strip()
-                if date_published:
-                    if isinstance(date_published, str) and date_published.strip():
-                        try:
-                            entry.date_published = datetime.fromisoformat(date_published.strip())
-                        except Exception:
-                            pass
-                    elif isinstance(date_published, datetime):
-                        entry.date_published = date_published
-                if author and str(author).strip():
-                    entry.author = str(author).strip()
-                if album and str(album).strip():
-                    entry.album = str(album).strip()
-                if language and str(language).strip():
-                    entry.language = str(language).strip()
-                if thumbnail and str(thumbnail).strip():
-                    entry.thumbnail = str(thumbnail).strip()
-
-            status_code = (
-                web_client.get_status_code()
-                if hasattr(web_client, "get_status_code")
-                else None
-            )
-
+            status_code = response.get_status_code() if hasattr(response, "get_status_code") else None
             if status_code:
                 entry.status_code = status_code
 
