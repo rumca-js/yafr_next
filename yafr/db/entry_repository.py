@@ -276,7 +276,15 @@ class EntryRepository(BaseRepository[LinkDataModel]):
             .where(EntryCompactedTags.entry_id == entry_id)
             .order_by(EntryCompactedTags.tag.asc())
         )
-        return list(self.session.execute(stmt).scalars().all())
+        tags = list(self.session.execute(stmt).scalars().all())
+        all_tags = []
+        for tag in tags:
+            split = tag.split(",")
+            for item in split:
+                if item.strip():
+                    all_tags.append(item)
+
+        return all_tags
 
     def set_tags(self, entry_id: int, tags: List[str]) -> List[str]:
         """
