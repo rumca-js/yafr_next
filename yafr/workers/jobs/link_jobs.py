@@ -85,50 +85,73 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
             else:
                 entry.date_dead_since = None
 
-            # Fetch BaseUrl / RemoteUrl metadata directly via webtoolkit
-            title = web_client.get_title() if hasattr(web_client, "get_title") else None
-            if not title and url_handler and hasattr(url_handler, "get_title"):
-                title = url_handler.get_title()
+            if web_client.is_valid():
+                # Fetch BaseUrl / RemoteUrl metadata directly via webtoolkit
+                title = web_client.get_title() if hasattr(web_client, "get_title") else None
+                if not title and url_handler and hasattr(url_handler, "get_title"):
+                    title = url_handler.get_title()
 
-            description = (
-                web_client.get_description()
-                if hasattr(web_client, "get_description")
-                else None
-            )
-            if not description and url_handler and hasattr(url_handler, "get_description"):
-                description = url_handler.get_description()
+                description = (
+                    web_client.get_description()
+                    if hasattr(web_client, "get_description")
+                    else None
+                )
+                if not description and url_handler and hasattr(url_handler, "get_description"):
+                    description = url_handler.get_description()
 
-            date_published = (
-                web_client.get_date_published()
-                if hasattr(web_client, "get_date_published")
-                else None
-            )
-            if not date_published and url_handler and hasattr(url_handler, "get_date_published"):
-                date_published = url_handler.get_date_published()
+                date_published = (
+                    web_client.get_date_published()
+                    if hasattr(web_client, "get_date_published")
+                    else None
+                )
+                if not date_published and url_handler and hasattr(url_handler, "get_date_published"):
+                    date_published = url_handler.get_date_published()
 
-            author = web_client.get_author() if hasattr(web_client, "get_author") else None
-            if not author and url_handler and hasattr(url_handler, "get_author"):
-                author = url_handler.get_author()
+                author = web_client.get_author() if hasattr(web_client, "get_author") else None
+                if not author and url_handler and hasattr(url_handler, "get_author"):
+                    author = url_handler.get_author()
 
-            album = web_client.get_album() if hasattr(web_client, "get_album") else None
-            if not album and url_handler and hasattr(url_handler, "get_album"):
-                album = url_handler.get_album()
+                album = web_client.get_album() if hasattr(web_client, "get_album") else None
+                if not album and url_handler and hasattr(url_handler, "get_album"):
+                    album = url_handler.get_album()
 
-            language = (
-                web_client.get_language()
-                if hasattr(web_client, "get_language")
-                else None
-            )
-            if not language and url_handler and hasattr(url_handler, "get_language"):
-                language = url_handler.get_language()
+                language = (
+                    web_client.get_language()
+                    if hasattr(web_client, "get_language")
+                    else None
+                )
+                if not language and url_handler and hasattr(url_handler, "get_language"):
+                    language = url_handler.get_language()
 
-            thumbnail = (
-                web_client.get_thumbnail()
-                if hasattr(web_client, "get_thumbnail")
-                else None
-            )
-            if not thumbnail and url_handler and hasattr(url_handler, "get_thumbnail"):
-                thumbnail = url_handler.get_thumbnail()
+                thumbnail = (
+                    web_client.get_thumbnail()
+                    if hasattr(web_client, "get_thumbnail")
+                    else None
+                )
+                if not thumbnail and url_handler and hasattr(url_handler, "get_thumbnail"):
+                    thumbnail = url_handler.get_thumbnail()
+
+                # Update entry properties
+                if title and str(title).strip():
+                    entry.title = str(title).strip()
+                if description and str(description).strip():
+                    entry.description = str(description).strip()
+                if date_published:
+                    if isinstance(date_published, str) and date_published.strip():
+                        try:
+                            entry.date_published = datetime.fromisoformat(date_published.strip())
+                        except Exception:
+                            pass
+                    elif isinstance(date_published, datetime):
+                        entry.date_published = date_published
+                if author and str(author).strip():
+                    entry.author = str(author).strip()
+                if album and str(album).strip():
+                    entry.album = str(album).strip()
+                if language and str(language).strip():
+                    entry.language = str(language).strip()
+                if thumbnail and str(thumbnail).strip():
+                    entry.thumbnail = str(thumbnail).strip()
 
             status_code = (
                 web_client.get_status_code()
@@ -136,27 +159,6 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
                 else None
             )
 
-            # Update entry properties
-            if title and str(title).strip():
-                entry.title = str(title).strip()
-            if description and str(description).strip():
-                entry.description = str(description).strip()
-            if date_published:
-                if isinstance(date_published, str) and date_published.strip():
-                    try:
-                        entry.date_published = datetime.fromisoformat(date_published.strip())
-                    except Exception:
-                        pass
-                elif isinstance(date_published, datetime):
-                    entry.date_published = date_published
-            if author and str(author).strip():
-                entry.author = str(author).strip()
-            if album and str(album).strip():
-                entry.album = str(album).strip()
-            if language and str(language).strip():
-                entry.language = str(language).strip()
-            if thumbnail and str(thumbnail).strip():
-                entry.thumbnail = str(thumbnail).strip()
             if status_code:
                 entry.status_code = status_code
 
