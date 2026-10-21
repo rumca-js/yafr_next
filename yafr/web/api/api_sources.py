@@ -2,17 +2,79 @@
 RESTful JSON API endpoints for Source interactions.
 
 Provides AJAX handlers for enabling/disabling sources, triggering fetches,
-batch deletion, batch refresh, and progress status tracking.
+batch deletion, batch refresh, progress status tracking, and IMAP connection testing.
 """
 
 import logging
+import sys
+import webtoolkit
 from flask import Blueprint, jsonify, request
 from yafr.db import JobRepository, SourceRepository, get_session
 from yafr.services import SourceService
 from yafr.web.shared import api_response
 
+# Apply webtoolkit email reader import bug workaround (ARCHITECTURE.md section 3.4)
+if "webtoolkit.utils" in sys.modules and "utils" not in sys.modules:
+    sys.modules["utils"] = sys.modules["webtoolkit.utils"]
+elif hasattr(webtoolkit, "utils") and "utils" not in sys.modules:
+    sys.modules["utils"] = webtoolkit.utils
+
 logger = logging.getLogger(__name__)
 api_sources_bp = Blueprint("api_sources", __name__, url_prefix="/api/sources")
+
+
+@api_sources_bp.route("/test-email-connection", methods=["POST"])
+def test_email_connection():
+    """
+    Tests IMAP credentials by attempting to connect and login to the given server.
+
+    Uses webtoolkit.utils.emailreader.EmailReader.connect(username, password)
+    which internally calls imaplib.IMAP4_SSL(server).login(username, password).
+
+    :request body: { "host": "imap.example.com", "username": "...", "password": "..." }
+    :return: JSON with success flag and message.
+    """
+    payload = request.get_json(silent=True) or {}
+    host = (payload.get("host") or "").strip()
+    username = (payload.get("username") or "").strip()
+    password = payload.get("password") or ""
+
+    if not host or not username or not password:
+        return jsonify(
+            {
+                "success": False,
+                "message": "IMAP host, username, and password are all required for the connection test.",
+            }
+        )
+
+    try:
+        from webtoolkit.utils.emailreader import EmailReader
+
+        reader = EmailReader(host)
+        result = reader.connect(username, password)
+        # imaplib.login() returns ('OK', [b'...']) on success; any exception means failure.
+        if result and result[0] == "OK":
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Connection to {host} succeeded. Credentials are valid.",
+                }
+            )
+        else:
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"Login to {host} was rejected (server response: {result}).",
+                }
+            )
+    except Exception as exc:
+        logger.info("Email connection test failed for %s / %s: %s", host, username, exc)
+        return jsonify(
+            {
+                "success": False,
+                "message": f"Connection failed: {exc}",
+            }
+        )
 
 
 @api_sources_bp.route("/<int:source_id>/fetch", methods=["POST"])

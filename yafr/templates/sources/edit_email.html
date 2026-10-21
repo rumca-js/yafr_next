@@ -107,6 +107,18 @@
           </div>
         </div>
 
+        <!-- Test Connection -->
+        <div class="mb-3">
+          <button type="button" id="btn-test-conn" class="btn btn-outline-info btn-sm rounded-pill px-3">
+            <i class="bi bi-plug me-1"></i>Test Connection
+          </button>
+          <span id="conn-spinner" class="ms-2 d-none">
+            <span class="spinner-border spinner-border-sm text-info" role="status"></span>
+            <span class="text-muted small ms-1">Connecting&hellip;</span>
+          </span>
+          <div id="conn-result" class="mt-2 d-none small"></div>
+        </div>
+
         <!-- Auto Tags -->
         <div class="mb-3">
           <label for="auto_tag" class="form-label fw-semibold">Auto-Assign Tags</label>
@@ -135,7 +147,7 @@
 
         <div class="d-flex justify-content-between align-items-center pt-3 border-top">
           <a href="{{ url_for('sources.sources_list') }}" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
-          <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+          <button type="submit" id="btn-save" class="btn btn-primary rounded-pill px-4 fw-semibold">
             <i class="bi bi-check2 me-1"></i>Save Email Source
           </button>
         </div>
@@ -144,4 +156,106 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  var connTested = false;
+  var connPassed = false;
+
+  var btnTest   = document.getElementById("btn-test-conn");
+  var spinner   = document.getElementById("conn-spinner");
+  var resultDiv = document.getElementById("conn-result");
+
+  /**
+   * Shows the connection test result banner.
+   * @param {boolean} success
+   * @param {string}  message
+   */
+  function showResult(success, message) {
+    resultDiv.className = "mt-2 small alert " + (success ? "alert-success" : "alert-danger") + " py-1 px-2";
+    resultDiv.textContent = message;
+  }
+
+  /**
+   * Resets connection state when the user edits credentials,
+   * requiring a new test before saving.
+   */
+  function onCredentialChange() {
+    if (connTested) {
+      connTested = false;
+      connPassed = false;
+      resultDiv.className = "mt-2 d-none small";
+      resultDiv.textContent = "";
+    }
+  }
+
+  document.getElementById("url").addEventListener("input", onCredentialChange);
+  document.getElementById("username").addEventListener("input", onCredentialChange);
+  document.getElementById("password").addEventListener("input", onCredentialChange);
+
+  btnTest.addEventListener("click", function () {
+    var host     = (document.getElementById("url").value || "").trim();
+    var username = (document.getElementById("username").value || "").trim();
+    var password = document.getElementById("password").value || "";
+
+    if (!host || !username || !password) {
+      showResult(false, "Please fill in the IMAP server host, username, and password before testing.");
+      return;
+    }
+
+    btnTest.disabled = true;
+    spinner.classList.remove("d-none");
+    resultDiv.className = "mt-2 d-none small";
+
+    fetch("{{ url_for('api_sources.test_email_connection') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host: host, username: username, password: password })
+    })
+    .then(function (resp) { return resp.json(); })
+    .then(function (data) {
+      connTested = true;
+      connPassed = !!data.success;
+      showResult(data.success, data.message || (data.success ? "Connection OK." : "Connection failed."));
+    })
+    .catch(function (err) {
+      connTested = true;
+      connPassed = false;
+      showResult(false, "Request error: " + err);
+    })
+    .finally(function () {
+      btnTest.disabled = false;
+      spinner.classList.add("d-none");
+    });
+  });
+
+  /* Intercept form submission — block if connection test failed or wasn't run. */
+  document.querySelector("form").addEventListener("submit", function (e) {
+    var host     = (document.getElementById("url").value || "").trim();
+    var username = (document.getElementById("username").value || "").trim();
+    var password = document.getElementById("password").value || "";
+
+    /* Only enforce the connection check when full credentials are present.
+       On the edit form the password may be intentionally left blank (keep existing). */
+    var hasCredentials = host && username && password;
+
+    if (hasCredentials && !connTested) {
+      e.preventDefault();
+      showResult(false, "Please test the connection before saving.");
+      btnTest.focus();
+      return;
+    }
+
+    if (hasCredentials && connTested && !connPassed) {
+      e.preventDefault();
+      showResult(false, "Cannot save: the connection test failed. Fix credentials and re-test.");
+      btnTest.focus();
+    }
+  });
+})();
+</script>
 {% endblock %}
