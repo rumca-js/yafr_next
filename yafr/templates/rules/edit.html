@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} - {% if rule %}Edit Rule{% else %}Add Rule{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+  <div class="row justify-content-center mt-4">
+    <div class="col-12 col-lg-8 col-xl-6">
+
+      <!-- Header -->
+      <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="{{ url_for('rules.rules_list') }}" class="btn btn-outline-secondary btn-sm rounded-pill">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+        <i class="bi bi-shield-check text-primary fs-4"></i>
+        <h4 class="mb-0">{% if rule %}Edit Rule{% else %}Add Entry Rule{% endif %}</h4>
+      </div>
+
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show small" role="alert">
+              <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }} me-1"></i>
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Form Card -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+          <form method="POST" action="{{ action_url }}" id="rule-form">
+
+            <!-- Rule Name -->
+            <div class="mb-3">
+              <label for="rule-name" class="form-label fw-semibold">
+                Rule Name <span class="text-danger">*</span>
+              </label>
+              <input type="text"
+                     class="form-control"
+                     id="rule-name"
+                     name="rule_name"
+                     value="{{ rule.rule_name if rule else '' }}"
+                     placeholder="e.g. Block Reddit, Trust GitHub"
+                     required
+                     maxlength="200">
+              <div class="form-text">A human-readable name for this rule.</div>
+            </div>
+
+            <!-- Trigger URL Pattern -->
+            <div class="mb-3">
+              <label for="trigger-rule-url" class="form-label fw-semibold">
+                URL Pattern (Regex) <span class="text-danger">*</span>
+              </label>
+              <textarea class="form-control font-monospace"
+                        id="trigger-rule-url"
+                        name="trigger_rule_url"
+                        rows="3"
+                        placeholder="e.g. .*reddit\.com.*, .*old\.reddit\.com.*"
+                        required>{{ rule.trigger_rule_url if rule else '' }}</textarea>
+              <div class="form-text">
+                Standard Python regex syntax. Separate multiple patterns with a comma.
+                Example: <code>.*reddit\.com.*</code> matches any URL containing <em>reddit.com</em>.
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Actions -->
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Actions</label>
+              <div class="d-flex flex-wrap gap-3">
+
+                <!-- Block -->
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch"
+                         id="block" name="block"
+                         {% if rule and rule.block %}checked{% endif %}>
+                  <label class="form-check-label" for="block">
+                    <span class="badge bg-danger me-1"><i class="bi bi-slash-circle"></i></span>
+                    Block matching URLs
+                  </label>
+                </div>
+
+                <!-- Trust -->
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" role="switch"
+                         id="trust" name="trust"
+                         {% if rule and rule.trust %}checked{% endif %}>
+                  <label class="form-check-label" for="trust">
+                    <span class="badge bg-success me-1"><i class="bi bi-check-circle"></i></span>
+                    Trust matching URLs (mark active)
+                  </label>
+                </div>
+
+              </div>
+              <div class="form-text mt-1">
+                <strong>Block</strong> discards the entry. <strong>Trust</strong> sets <code>manual_status_code = 200</code>.
+                Both can be left unchecked if the rule is only for tagging or age limiting.
+              </div>
+            </div>
+
+            <!-- Auto Tag -->
+            <div class="mb-3">
+              <label for="auto-tag" class="form-label fw-semibold">Auto-Tag</label>
+              <input type="text"
+                     class="form-control"
+                     id="auto-tag"
+                     name="auto_tag"
+                     value="{{ rule.auto_tag if rule else '' }}"
+                     placeholder="e.g. reddit, social, news"
+                     maxlength="500">
+              <div class="form-text">
+                Comma-separated tags automatically attached to matching entries.
+              </div>
+            </div>
+
+            <!-- Apply Age Limit & Priority Row -->
+            <div class="row g-3 mb-3">
+              <div class="col-sm-6">
+                <label for="apply-age-limit" class="form-label fw-semibold">Apply Age Limit</label>
+                <input type="number"
+                       class="form-control"
+                       id="apply-age-limit"
+                       name="apply_age_limit"
+                       value="{{ rule.apply_age_limit if rule else 0 }}"
+                       min="0" max="99999">
+                <div class="form-text">Age restriction applied to matching entries. 0 = no limit.</div>
+              </div>
+
+              <div class="col-sm-6">
+                <label for="priority" class="form-label fw-semibold">Priority</label>
+                <input type="number"
+                       class="form-control"
+                       id="priority"
+                       name="priority"
+                       value="{{ rule.priority if rule else 0 }}"
+                       min="0" max="99999">
+                <div class="form-text">Lower value = evaluated first. Default is 0.</div>
+              </div>
+            </div>
+
+            <!-- Enabled -->
+            <div class="mb-4">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="enabled" name="enabled"
+                       {% if not rule or rule.enabled %}checked{% endif %}>
+                <label class="form-check-label fw-semibold" for="enabled">Rule enabled</label>
+              </div>
+              <div class="form-text">Disabled rules are stored but not applied during URL evaluation.</div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary rounded-pill px-4">
+                <i class="bi bi-check-lg me-1"></i>{% if rule %}Save Changes{% else %}Create Rule{% endif %}
+              </button>
+              <a href="{{ url_for('rules.rules_list') }}" class="btn btn-outline-secondary rounded-pill px-4">
+                Cancel
+              </a>
+            </div>
+
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

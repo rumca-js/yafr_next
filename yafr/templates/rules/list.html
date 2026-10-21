@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} - Entry Rules{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+  <!-- Header -->
+  <div class="row justify-content-center mt-4">
+    <div class="col-12 col-xl-11">
+
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-shield-check text-primary fs-4"></i>
+          <h4 class="mb-0">Entry Rules</h4>
+          <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">{{ rules|length }} rule{{ 's' if rules|length != 1 }}</span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <a href="{{ url_for('rules.rule_add') }}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Rule
+          </a>
+        </div>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="alert alert-info alert-dismissible fade show small mb-3" role="alert">
+        <i class="bi bi-info-circle me-1"></i>
+        Entry rules are evaluated against candidate URLs using <strong>regex patterns</strong>.
+        The <code>trigger_rule_url</code> field supports standard Python regex syntax
+        (e.g. <code>.*reddit\.com.*</code>). Multiple patterns per rule can be separated by commas.
+        Rules are applied in <strong>priority order</strong> (lower number = higher priority).
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+
+      <!-- Empty State -->
+      {% if not rules %}
+        <div class="text-center py-5 my-5 text-muted">
+          <i class="bi bi-shield-check display-4 d-block mb-3 text-secondary"></i>
+          <h5>No entry rules configured</h5>
+          <p class="text-secondary mb-3">
+            Add rules to automatically block, trust, tag, or apply age limits to URLs
+            matching regex patterns.
+          </p>
+          <a href="{{ url_for('rules.rule_add') }}" class="btn btn-primary btn-sm rounded-pill px-4">
+            <i class="bi bi-plus-lg me-1"></i>Add First Rule
+          </a>
+        </div>
+      {% else %}
+
+        <!-- Rules Table -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light small">
+                <tr>
+                  <th style="width: 70px;" class="text-center">Priority</th>
+                  <th style="width: 180px;">Name</th>
+                  <th>URL Pattern</th>
+                  <th style="width: 90px;" class="text-center">Actions</th>
+                  <th style="width: 110px;" class="text-center">Tags</th>
+                  <th style="width: 80px;" class="text-center">Age Limit</th>
+                  <th style="width: 100px;" class="text-center">Status</th>
+                  <th style="width: 110px;" class="text-center">Operations</th>
+                </tr>
+              </thead>
+              <tbody id="rules-table-body">
+                {% for rule in rules %}
+                  <tr id="rule-row-{{ rule.id }}" class="rule-row {% if not rule.enabled %}opacity-50{% endif %}">
+
+                    <!-- Priority -->
+                    <td class="text-center">
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis border">
+                        {{ rule.priority if rule.priority is not none else 0 }}
+                      </span>
+                    </td>
+
+                    <!-- Name -->
+                    <td>
+                      <span class="fw-semibold">{{ rule.rule_name or '—' }}</span>
+                    </td>
+
+                    <!-- URL Pattern -->
+                    <td>
+                      <code class="small text-break">{{ rule.trigger_rule_url or '—' }}</code>
+                    </td>
+
+                    <!-- Action Badges -->
+                    <td class="text-center text-nowrap">
+                      {% if rule.block %}
+                        <span class="badge bg-danger" title="Matching URLs are blocked">
+                          <i class="bi bi-slash-circle me-1"></i>Block
+                        </span>
+                      {% endif %}
+                      {% if rule.trust %}
+                        <span class="badge bg-success" title="Matching URLs are trusted (marked active)">
+                          <i class="bi bi-check-circle me-1"></i>Trust
+                        </span>
+                      {% endif %}
+                      {% if not rule.block and not rule.trust %}
+                        <span class="badge bg-light text-muted border">—</span>
+                      {% endif %}
+                    </td>
+
+                    <!-- Auto Tags -->
+                    <td class="text-center">
+                      {% if rule.auto_tag %}
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle small" title="{{ rule.auto_tag }}">
+                          <i class="bi bi-tag me-1"></i>{{ rule.auto_tag[:20] }}{% if rule.auto_tag|length > 20 %}…{% endif %}
+                        </span>
+                      {% else %}
+                        <span class="text-muted small">—</span>
+                      {% endif %}
+                    </td>
+
+                    <!-- Age Limit -->
+                    <td class="text-center">
+                      {% if rule.apply_age_limit and rule.apply_age_limit > 0 %}
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                          {{ rule.apply_age_limit }}
+                        </span>
+                      {% else %}
+                        <span class="text-muted small">—</span>
+                      {% endif %}
+                    </td>
+
+                    <!-- Status Toggle -->
+                    <td class="text-center" id="rule-status-col-{{ rule.id }}">
+                      {% if rule.enabled %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                          <i class="bi bi-check-circle me-1"></i>Enabled
+                        </span>
+                      {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                          <i class="bi bi-pause-circle me-1"></i>Disabled
+                        </span>
+                      {% endif %}
+                    </td>
+
+                    <!-- Operations -->
+                    <td class="text-center text-nowrap">
+                      <!-- Toggle enabled/disabled -->
+                      <button type="button"
+                              class="btn btn-outline-secondary btn-sm toggle-rule-btn"
+                              data-rule-id="{{ rule.id }}"
+                              data-enabled="{{ 'true' if rule.enabled else 'false' }}"
+                              title="{% if rule.enabled %}Disable rule{% else %}Enable rule{% endif %}">
+                        <i class="bi {% if rule.enabled %}bi-pause-fill{% else %}bi-play-fill{% endif %}"></i>
+                      </button>
+
+                      <!-- Edit -->
+                      <a href="{{ url_for('rules.rule_edit', id=rule.id) }}"
+                         class="btn btn-outline-primary btn-sm ms-1"
+                         title="Edit rule">
+                        <i class="bi bi-pencil"></i>
+                      </a>
+
+                      <!-- Delete -->
+                      <button type="button"
+                              class="btn btn-outline-danger btn-sm ms-1 delete-rule-btn"
+                              data-rule-id="{{ rule.id }}"
+                              data-rule-name="{{ rule.rule_name or 'Rule #' ~ rule.id }}"
+                              title="Delete rule">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+      {% for category, message in messages %}
+        <div class="toast align-items-center text-bg-{{ 'success' if category == 'success' else 'danger' }} border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div class="toast-body">
+              <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }} me-2"></i>
+              {{ message }}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Modal: Confirm Delete Rule -->
+<div class="modal fade" id="deleteRuleModal" tabindex="-1" aria-labelledby="deleteRuleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger d-flex align-items-center gap-2" id="deleteRuleModalLabel">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>Confirm Rule Deletion</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="delete-rule-modal-text">
+          Are you sure you want to permanently delete this rule?
+        </p>
+        <div class="alert alert-warning small mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          This operation cannot be undone. The rule will stop being applied to future URL evaluations.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancel</button>
+        <form id="delete-rule-form" method="POST" action="">
+          <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4">
+            <i class="bi bi-trash me-1"></i>Delete Rule
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rules.js') }}"></script>
+{% endblock %}
