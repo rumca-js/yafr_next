@@ -104,9 +104,6 @@
             <h5>No sources found</h5>
             <p class="text-secondary mb-3">No matching feed or parse sources found in local database.</p>
             <div class="d-flex justify-content-center gap-2">
-              <a href="{{ url_for('sources.sources_list', all='1') }}" class="btn btn-outline-primary btn-sm rounded-pill">
-                Browse All Sources
-              </a>
               <a href="{{ url_for('sources.source_add_rss') }}" class="btn btn-primary btn-sm rounded-pill">
                 <i class="bi bi-plus-lg me-1"></i>Add RSS Source
               </a>
