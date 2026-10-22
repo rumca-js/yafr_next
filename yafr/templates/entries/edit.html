@@ -141,6 +141,24 @@
           </div>
         </div>
 
+        <!-- Row: Age Limit -->
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            <label for="age" class="form-label fw-semibold">Age Limit</label>
+            <input
+              type="number"
+              class="form-control shadow-sm"
+              id="age"
+              name="age"
+              value="{{ entry.age if entry and entry.age is not none and entry.age > 0 else '' }}"
+              placeholder="e.g. 18"
+              min="0"
+              max="999"
+            >
+            <div class="form-text small">Minimum age required to view this content. Leave empty or 0 for no restriction.</div>
+          </div>
+        </div>
+
         <!-- Row: Thumbnail & Publication Date -->
         <div class="row g-3 mb-3">
           <div class="col-12 col-md-6">

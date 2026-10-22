@@ -298,6 +298,14 @@ def entry_edit_screen(id: int):
             except ValueError:
                 pass
 
+        age_str = request.form.get("age", "").strip()
+        age = None
+        if age_str:
+            try:
+                age = max(0, int(age_str))
+            except ValueError:
+                pass
+
         entry_repo.update_entry(
             id,
             title=title,
@@ -307,6 +315,7 @@ def entry_edit_screen(id: int):
             language=language,
             thumbnail=thumbnail,
             date_published=date_published or entry.date_published,
+            age=age,
         )
         entry_repo.set_tags(id, tags)
         flash("Entry metadata updated successfully.", "success")
