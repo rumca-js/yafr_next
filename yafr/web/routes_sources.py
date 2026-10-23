@@ -16,6 +16,7 @@ from linkarchivetools.model.definitions import (
     SourcesTable,
     User,
 )
+from linkarchivetools.model.sources import Sources
 from yafr.db import ConfigRepository, SourceRepository, get_session
 from yafr.search import SOURCE_FILTERS, SearchParser, SourceSearchQueryBuilder
 
@@ -324,7 +325,7 @@ def source_add_email():
         new_source = source_repo.add_source(
             url=url,
             title=title or url,
-            source_type="EMAIL",
+            source_type=Sources.SOURCE_TYPE_EMAIL,
             enabled=enabled,
             auto_tag=auto_tag,
             credentials_id=creds.id,

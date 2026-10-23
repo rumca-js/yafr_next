@@ -17,13 +17,16 @@ from bs4 import MarkupResemblesLocatorWarning
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 import webtoolkit
+from webtoolkit.utils.emailreader import EmailReader
 from linkarchivetools.model.definitions import (
     LinkDataModel,
     SourceOperationalData,
     SourcesTable,
 )
+from linkarchivetools.model.sources import Sources
 from yafr.db.session import get_session, session_scope
 from yafr.db.source_repository import SourceRepository
+from yafr.db.credentials_repository import CredentialsRepository
 from yafr.services.entry_builder import EntryBuilder
 from yafr.services.webtools_service import WebToolsWrapper
 
@@ -31,12 +34,6 @@ logger = logging.getLogger(__name__)
 
 # Suppress BeautifulSoup markup locator warning
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
-
-# Apply webtoolkit email reader import bug workaround (ARCHITECTURE.md section 3.4)
-if "webtoolkit.utils" in sys.modules and "utils" not in sys.modules:
-    sys.modules["utils"] = sys.modules["webtoolkit.utils"]
-elif hasattr(webtoolkit, "utils") and "utils" not in sys.modules:
-    sys.modules["utils"] = webtoolkit.utils
 
 
 class SourceService:
@@ -215,7 +212,16 @@ class SourceService:
             session.add(op_data)
             session.flush()
 
+        if source.source_type == Sources.SOURCE_TYPE_EMAIL:
+            return cls._execute_fetch_email(source, op_data, session)
+        else:
+            return cls._execute_fetch_rss(source, op_data, session)
+
+
+    @classmethod
+    def _execute_fetch_rss(cls, source, op_data, session: Session) -> Dict[str, Any]:
         # Download content using WebToolsWrapper (BaseUrl / RemoteUrl)
+        web_client = None
         try:
             web_client = WebToolsWrapper(url=source.url, session=session, timeout_s=15)
             response = web_client.get_response()
@@ -248,14 +254,14 @@ class SourceService:
 
         except Exception as err:
             logger.warning(
-                "Failed to fetch source %s (%s): %s", source_id, source.url, err
+                "Failed to fetch source %s (%s): %s", source.id, source.url, err
             )
             op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
             op_data.date_fetched = datetime.now(timezone.utc)
             session.commit()
             return {
                 "success": False,
-                "source_id": source_id,
+                "source_id": source.id,
                 "error": f"Network download error: {err}",
                 "status": "error",
             }
@@ -268,7 +274,7 @@ class SourceService:
         if op_data.page_hash and op_data.page_hash == page_hash:
             logger.info(
                 "Source %s (%s) hash unchanged, skipping entry parse",
-                source_id,
+                source.id,
                 source.title,
             )
             op_data.date_fetched = datetime.now(timezone.utc)
@@ -277,7 +283,7 @@ class SourceService:
             session.commit()
             return {
                 "success": True,
-                "source_id": source_id,
+                "source_id": source.id,
                 "status": "unchanged",
                 "message": "Content unchanged (hash match).",
                 "entries_added": 0,
@@ -285,18 +291,15 @@ class SourceService:
 
         # Parse RSS / Feed entries
         try:
-            rss_page = webtoolkit.RssPage(source.url, content_str)
-            raw_entries = list(rss_page.get_entries()) if rss_page.is_valid() else []
-            if not raw_entries and hasattr(web_client, "get_entries"):
-                raw_entries = web_client.get_entries() or []
+            raw_entries = web_client.get_entries() or []
         except Exception as err:
-            logger.warning("Error parsing RSS feed for source %s: %s", source_id, err)
+            logger.warning("Error parsing RSS feed for source %s: %s", source.id, err)
             op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
             op_data.date_fetched = datetime.now(timezone.utc)
             session.commit()
             return {
                 "success": False,
-                "source_id": source_id,
+                "source_id": source.id,
                 "error": f"Feed parsing error: {err}",
                 "status": "error",
             }
@@ -358,7 +361,128 @@ class SourceService:
 
         return {
             "success": True,
-            "source_id": source_id,
+            "source_id": source.id,
+            "status": "completed",
+            "message": f"Successfully refreshed {source.title}: {entries_added} new entries added.",
+            "entries_added": entries_added,
+        }
+
+    @classmethod
+    def get_email_link(cls, source, creds, email):
+        return "email://{}/{}/{}".format(
+            source.url, creds.username, email.id
+        )
+
+    @classmethod
+    def _execute_fetch_email(cls, source, op_data, session: Session) -> Dict[str, Any]:
+        # Download content using WebToolsWrapper (BaseUrl / RemoteUrl)
+        web_client = None
+        try:
+            creds_repo = CredentialsRepository(session=session)
+            creds = creds_repo.get_credential(source.credentials_id)
+
+            web_client = EmailReader(server=source.url)
+            connect_status = web_client.connect(username=creds.username, password=creds.password)
+
+            if not connect_status:
+                raise ConnectionError( f"Email connection error when fetching {source.url}")
+
+        except Exception as err:
+            logger.warning(
+                "Failed to fetch source %s (%s): %s", source.id, source.url, err
+            )
+            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
+            op_data.date_fetched = datetime.now(timezone.utc)
+            session.commit()
+            return {
+                "success": False,
+                "source_id": source.id,
+                "error": f"Network download error: {err}",
+                "status": "error",
+            }
+
+        try:
+            raw_entries = []
+            emails = web_client.get_emails()
+            for email in emails:
+                link_data = {}
+                link_data["title"] = email.title
+                link_data["date_published"] = email.date_published
+                link_data["description"] = email.body
+                link_data["author"] = email.author
+                link_data["link"] = cls.get_email_link(source, creds, email)
+                raw_entries.append(link_data)
+
+        except Exception as err:
+            logger.warning("Error parsing RSS feed for source %s: %s", source.id, err)
+            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
+            op_data.date_fetched = datetime.now(timezone.utc)
+            session.commit()
+            return {
+                "success": False,
+                "source_id": source.id,
+                "error": f"Feed parsing error: {err}",
+                "status": "error",
+            }
+
+        builder = EntryBuilder(session=session)
+        entries_added = 0
+
+        for item in raw_entries:
+            link = (item.get("link") or "").strip()
+            if not link:
+                continue
+
+            title = item.get("title")
+            desc = item.get("description")
+            thumb = item.get("thumbnail")
+            author = item.get("author")
+            album = item.get("album")
+            lang = item.get("language")
+            date_published = item.get("date_published")
+            tags = item.get("tags") if isinstance(item.get("tags"), list) else None
+
+            created_entry = builder.build_and_save(
+                link=link,
+                title=title,
+                description=desc,
+                source=source,
+                thumbnail=thumb,
+                author=author,
+                album=album,
+                language=lang,
+                date_published=date_published,
+                tags=tags,
+                commit=False,
+            )
+            if created_entry is not None:
+                entries_added += 1
+
+        session.flush()
+
+        # Update operational metrics
+        total_source_entries = (
+            session.execute(
+                select(func.count(LinkDataModel.id)).where(
+                    LinkDataModel.source_id == source.id
+                )
+            ).scalar()
+            or 0
+        )
+
+        now_utc = datetime.now(timezone.utc)
+        op_data.page_hash = None
+        op_data.body_hash = None
+        op_data.number_of_entries = total_source_entries
+        op_data.consecutive_errors = 0
+        op_data.date_fetched = now_utc
+        op_data.date_successful_fetch = now_utc
+
+        session.commit()
+
+        return {
+            "success": True,
+            "source_id": source.id,
             "status": "completed",
             "message": f"Successfully refreshed {source.title}: {entries_added} new entries added.",
             "entries_added": entries_added,

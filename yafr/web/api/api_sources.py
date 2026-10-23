@@ -12,12 +12,7 @@ from flask import Blueprint, jsonify, request
 from yafr.db import JobRepository, SourceRepository, get_session
 from yafr.services import SourceService
 from yafr.web.shared import api_response
-
-# Apply webtoolkit email reader import bug workaround (ARCHITECTURE.md section 3.4)
-if "webtoolkit.utils" in sys.modules and "utils" not in sys.modules:
-    sys.modules["utils"] = sys.modules["webtoolkit.utils"]
-elif hasattr(webtoolkit, "utils") and "utils" not in sys.modules:
-    sys.modules["utils"] = webtoolkit.utils
+from webtoolkit.utils.emailreader import EmailReader
 
 logger = logging.getLogger(__name__)
 api_sources_bp = Blueprint("api_sources", __name__, url_prefix="/api/sources")
@@ -48,7 +43,6 @@ def test_email_connection():
         )
 
     try:
-        from webtoolkit.utils.emailreader import EmailReader
 
         reader = EmailReader(host)
         result = reader.connect(username, password)

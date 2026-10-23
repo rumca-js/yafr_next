@@ -290,14 +290,7 @@ stateDiagram-v2
 
 ### 3.4 Email Source Integration & Webtoolkit Patch Note
 
-> [!IMPORTANT]
-> **webtoolkit.utils.emailreader Bug Mitigation**:
-> In the installed `webtoolkit` package, `webtoolkit/utils/emailreader.py` imports `DateUtils` via an invalid relative path:
-> ```python
-> # Faulty import in webtoolkit/utils/emailreader.py:
-> from utils.dateutils import DateUtils  # Fails with ModuleNotFoundError: No module named 'utils'
-> ```
-> To maintain isolation and avoid modifying `site-packages` directly, YAFR implements an adapter wrapper (`yafr.workers.email_reader_adapter.EmailReaderAdapter`) that patches `sys.modules['utils.dateutils'] = webtoolkit.utils.dateutils` before invoking `EmailReader`, guaranteeing uninterrupted IMAP ingestion without requiring any external tools.
+use via import webtoolkit/utils/emailreader.py
 
 ---
 
