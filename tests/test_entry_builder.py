@@ -296,6 +296,7 @@ class TestEntryBuilder(unittest.TestCase):
             title="Feed with Auto Tags",
             auto_tag="automated, testing",
             language="en",
+            age=18,
         )
 
         sample_rss = """<?xml version="1.0" encoding="UTF-8"?>
@@ -345,6 +346,7 @@ class TestEntryBuilder(unittest.TestCase):
 
             for entry in entries:
                 self.assertEqual(entry.language, "en")
+                self.assertEqual(entry.age, 18)
                 tags = (
                     self.session.execute(
                         select(EntryCompactedTags.tag).where(

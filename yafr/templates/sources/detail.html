@@ -98,6 +98,12 @@
                   <i class="bi bi-translate me-1"></i>{{ source.language }}
                 </span>
               {% endif %}
+
+              {% if source.age and source.age > 0 %}
+                <span class="badge bg-warning text-dark border" id="badge-source-age" title="Minimum Age {{ source.age }}+">
+                  <i class="bi bi-exclamation-octagon me-1"></i>Age {{ source.age }}+
+                </span>
+              {% endif %}
             </div>
 
             <!-- Feed URL Link -->

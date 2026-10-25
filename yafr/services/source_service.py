@@ -302,6 +302,10 @@ class SourceService:
             if not link:
                 continue
 
+            entry_age = item.get("age")
+            if entry_age is None and source is not None:
+                entry_age = source.age if source.age is not None else 0
+
             created_entry = builder.build_and_save(
                 link=link,
                 title=item.get("title"),
@@ -311,6 +315,7 @@ class SourceService:
                 author=item.get("author"),
                 album=item.get("album"),
                 language=item.get("language"),
+                age=entry_age,
                 date_published=item.get("date_published"),
                 tags=item.get("tags") if isinstance(item.get("tags"), list) else None,
                 commit=False,

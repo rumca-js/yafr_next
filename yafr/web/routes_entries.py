@@ -241,12 +241,12 @@ def entry_detail_view(id: int):
     embed_iframe = None
     if embed_url:
         embed_iframe = (
-            f'<iframe'
+            f"<iframe"
             f' src="{embed_url}"'
             f' title="{embed_title}"'
             f' allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"'
-            f' allowfullscreen'
-            f'></iframe>'
+            f" allowfullscreen"
+            f"></iframe>"
         )
 
     # Parse domain for external research tools (Wayback Machine, Schema, Whois)
@@ -299,12 +299,12 @@ def entry_edit_screen(id: int):
                 pass
 
         age_str = request.form.get("age", "").strip()
-        age = None
+        age = 0
         if age_str:
             try:
                 age = max(0, int(age_str))
             except ValueError:
-                pass
+                age = 0
 
         entry_repo.update_entry(
             id,

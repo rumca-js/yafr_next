@@ -125,6 +125,21 @@
           <div class="form-text">Optional default language code (e.g. <code>en</code>, <code>pl</code>). Ingested entries inherit this language when none is specified by the feed.</div>
         </div>
 
+        <!-- Age Limit -->
+        <div class="mb-3">
+          <label for="age" class="form-label fw-semibold">Minimum Age Requirement</label>
+          <input 
+            type="number" 
+            name="age" 
+            id="age" 
+            class="form-control" 
+            placeholder="0" 
+            min="0"
+            value="{{ source.age if source and source.age is not none else '0' }}"
+          >
+          <div class="form-text">Minimum age from which content can be viewed (e.g. <code>0</code> for anybody, <code>18</code> for adult). Default is <code>0</code>.</div>
+        </div>
+
         <!-- Fetch Period -->
         <div class="mb-3">
           <label for="fetch_period" class="form-label fw-semibold">Fetch Period (seconds)</label>

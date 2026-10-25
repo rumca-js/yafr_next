@@ -142,6 +142,23 @@ def _parse_fetch_period(raw_value: Any) -> Optional[int]:
         return None
 
 
+def _parse_age(raw_value: Any) -> int:
+    """
+    Parses minimum age from request form data.
+    Defaults to 0 (visible to anybody).
+    """
+    if raw_value is None:
+        return 0
+    val_str = str(raw_value).strip()
+    if not val_str:
+        return 0
+    try:
+        val = int(val_str)
+        return max(0, val)
+    except (ValueError, TypeError):
+        return 0
+
+
 @sources_bp.route("/sources/<int:id>")
 def source_detail(id: int):
     """
@@ -242,6 +259,7 @@ def source_add_rss():
         favicon = request.form.get("favicon", "").strip() or None
         category_name = request.form.get("category_name", "").strip() or None
         language = request.form.get("language", "").strip() or None
+        age = _parse_age(request.form.get("age"))
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url:
@@ -262,6 +280,7 @@ def source_add_rss():
             favicon=favicon,
             category_name=category_name,
             language=language,
+            age=age,
             fetch_period=fetch_period,
         )
         flash(f"RSS source '{new_source.title}' created successfully.", "success")
@@ -289,6 +308,7 @@ def source_edit_rss(id: int):
         favicon = request.form.get("favicon", "").strip() or None
         category_name = request.form.get("category_name", "").strip() or None
         language = request.form.get("language", "").strip() or None
+        age = _parse_age(request.form.get("age"))
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         source_repo.update_source(
@@ -300,6 +320,7 @@ def source_edit_rss(id: int):
             favicon=favicon,
             category_name=category_name,
             language=language,
+            age=age,
             fetch_period=fetch_period,
         )
         flash(f"Source '{title}' updated successfully.", "success")
@@ -325,6 +346,7 @@ def source_add_email():
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
         language = request.form.get("language", "").strip() or None
+        age = _parse_age(request.form.get("age"))
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url or not username:
@@ -366,6 +388,7 @@ def source_add_email():
             auto_tag=auto_tag,
             credentials_id=creds.id,
             language=language,
+            age=age,
             fetch_period=fetch_period,
         )
         flash(f"Email source '{new_source.title}' configured successfully.", "success")
@@ -401,6 +424,7 @@ def source_edit_email(id: int):
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
         language = request.form.get("language", "").strip() or None
+        age = _parse_age(request.form.get("age"))
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if credentials:
@@ -443,6 +467,7 @@ def source_edit_email(id: int):
             auto_tag=auto_tag,
             credentials_id=credentials.id,
             language=language,
+            age=age,
             fetch_period=fetch_period,
         )
         flash(f"Email source '{title}' updated successfully.", "success")
@@ -468,6 +493,7 @@ def source_add_parse():
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
         language = request.form.get("language", "").strip() or None
+        age = _parse_age(request.form.get("age"))
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url:
@@ -482,6 +508,7 @@ def source_add_parse():
             enabled=enabled,
             auto_tag=auto_tag,
             language=language,
+            age=age,
             fetch_period=fetch_period,
         )
         flash(f"Parse source '{new_source.title}' configured successfully.", "success")
@@ -508,6 +535,7 @@ def source_edit_parse(id: int):
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
         language = request.form.get("language", "").strip() or None
+        age = _parse_age(request.form.get("age"))
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         source_repo.update_source(
@@ -518,6 +546,7 @@ def source_edit_parse(id: int):
             enabled=enabled,
             auto_tag=auto_tag,
             language=language,
+            age=age,
             fetch_period=fetch_period,
         )
         flash(f"Parse source '{title}' updated successfully.", "success")
