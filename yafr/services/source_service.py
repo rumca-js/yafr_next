@@ -217,11 +217,252 @@ class SourceService:
         else:
             return cls._execute_fetch_rss(source, op_data, session)
 
+    @classmethod
+    def _record_fetch_error(
+        cls,
+        source: SourcesTable,
+        op_data: SourceOperationalData,
+        session: Session,
+        error_msg: str,
+        status: str = "error",
+    ) -> Dict[str, Any]:
+        """
+        Records a fetch failure on source operational data and commits the error state.
+
+        :param source: SourcesTable instance
+        :param op_data: SourceOperationalData record
+        :param session: Active database session
+        :param error_msg: Descriptive failure message
+        :param status: Result status code
+        :return: Standard error result dictionary
+        """
+        op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
+        op_data.date_fetched = datetime.now(timezone.utc)
+        session.commit()
+        return {
+            "success": False,
+            "source_id": source.id,
+            "error": error_msg,
+            "status": status,
+        }
+
+    @classmethod
+    def _record_operational_unchanged(
+        cls,
+        source: SourcesTable,
+        op_data: SourceOperationalData,
+        session: Session,
+    ) -> Dict[str, Any]:
+        """
+        Updates source operational tracking data when payload hash matches existing hash.
+
+        :param source: SourcesTable instance
+        :param op_data: SourceOperationalData record
+        :param session: Active database session
+        :return: Standard unchanged result dictionary
+        """
+        logger.info(
+            "Source %s (%s) hash unchanged, skipping entry parse",
+            source.id,
+            source.title,
+        )
+        now_utc = datetime.now(timezone.utc)
+        op_data.date_fetched = now_utc
+        op_data.date_successful_fetch = now_utc
+        op_data.consecutive_errors = 0
+        session.commit()
+        return {
+            "success": True,
+            "source_id": source.id,
+            "status": "unchanged",
+            "message": "Content unchanged (hash match).",
+            "entries_added": 0,
+        }
+
+    @classmethod
+    def _save_entries(
+        cls,
+        raw_entries: List[Dict[str, Any]],
+        source: SourcesTable,
+        session: Session,
+    ) -> int:
+        """
+        Builds and saves LinkDataModel records from extracted raw feed/email entries.
+
+        :param raw_entries: List of dictionaries containing entry metadata
+        :param source: SourcesTable instance
+        :param session: Active database session
+        :return: Number of newly added entries
+        """
+        builder = EntryBuilder(session=session)
+        entries_added = 0
+
+        for item in raw_entries:
+            link = (item.get("link") or "").strip()
+            if not link:
+                continue
+
+            created_entry = builder.build_and_save(
+                link=link,
+                title=item.get("title"),
+                description=item.get("description"),
+                source=source,
+                thumbnail=item.get("thumbnail"),
+                author=item.get("author"),
+                album=item.get("album"),
+                language=item.get("language"),
+                date_published=item.get("date_published"),
+                tags=item.get("tags") if isinstance(item.get("tags"), list) else None,
+                commit=False,
+            )
+            if created_entry is not None:
+                entries_added += 1
+
+        session.flush()
+        return entries_added
+
+    @classmethod
+    def _update_operational_success(
+        cls,
+        source: SourcesTable,
+        op_data: SourceOperationalData,
+        session: Session,
+        page_hash: Optional[bytes] = None,
+        body_hash: Optional[bytes] = None,
+        entries_added: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Updates source operational tracking data after a successful fetch cycle.
+
+        :param source: SourcesTable instance
+        :param op_data: SourceOperationalData record
+        :param session: Active database session
+        :param page_hash: Optional SHA-256 payload hash (bytes)
+        :param body_hash: Optional SHA-256 body hash (bytes)
+        :param entries_added: Number of newly inserted entries
+        :return: Standard success result dictionary
+        """
+        total_source_entries = (
+            session.execute(
+                select(func.count(LinkDataModel.id)).where(
+                    LinkDataModel.source_id == source.id
+                )
+            ).scalar()
+            or 0
+        )
+
+        now_utc = datetime.now(timezone.utc)
+        op_data.page_hash = page_hash
+        op_data.body_hash = body_hash
+        op_data.number_of_entries = total_source_entries
+        op_data.consecutive_errors = 0
+        op_data.date_fetched = now_utc
+        op_data.date_successful_fetch = now_utc
+
+        session.commit()
+
+        return {
+            "success": True,
+            "source_id": source.id,
+            "status": "completed",
+            "message": f"Successfully refreshed {source.title}: {entries_added} new entries added.",
+            "entries_added": entries_added,
+        }
+
+    @classmethod
+    def _execute_source_pipeline(
+        cls,
+        source: SourcesTable,
+        op_data: SourceOperationalData,
+        session: Session,
+        extractor: Any,
+    ) -> Dict[str, Any]:
+        """
+        Unified fetch pipeline coordinating protocol-specific extraction, change detection,
+        entry persistence via EntryBuilder, and operational data tracking.
+
+        :param source: SourcesTable record
+        :param op_data: SourceOperationalData record
+        :param session: Active database session
+        :param extractor: Extractor class implementing extract(source, op_data, session)
+        :return: Standard result dictionary
+        """
+        result = extractor.extract(source, op_data, session)
+        if result.error:
+            return cls._record_fetch_error(source, op_data, session, result.error)
+
+        if result.is_unchanged:
+            return cls._record_operational_unchanged(source, op_data, session)
+
+        entries_added = cls._save_entries(result.raw_entries, source, session)
+        return cls._update_operational_success(
+            source=source,
+            op_data=op_data,
+            session=session,
+            page_hash=result.page_hash,
+            body_hash=result.body_hash,
+            entries_added=entries_added,
+        )
 
     @classmethod
     def _execute_fetch_rss(cls, source, op_data, session: Session) -> Dict[str, Any]:
-        # Download content using WebToolsWrapper (BaseUrl / RemoteUrl)
-        web_client = None
+        """
+        Executes fetch pipeline for RSS and web feeds.
+        """
+        return cls._execute_source_pipeline(
+            source, op_data, session, RssSourceExtractor
+        )
+
+    @classmethod
+    def get_email_link(cls, source, creds, email):
+        """
+        Constructs standard internal URI for email messages.
+        """
+        return "email://{}/{}/{}".format(source.url, creds.username, email.id)
+
+    @classmethod
+    def _execute_fetch_email(cls, source, op_data, session: Session) -> Dict[str, Any]:
+        """
+        Executes fetch pipeline for email sources.
+        """
+        return cls._execute_source_pipeline(
+            source, op_data, session, EmailSourceExtractor
+        )
+
+
+class FetchExtractionResult:
+    """
+    Data container holding the result of a source extraction operation.
+    """
+
+    def __init__(
+        self,
+        raw_entries: Optional[List[Dict[str, Any]]] = None,
+        page_hash: Optional[bytes] = None,
+        body_hash: Optional[bytes] = None,
+        is_unchanged: bool = False,
+        error: Optional[str] = None,
+    ) -> None:
+        self.raw_entries = raw_entries or []
+        self.page_hash = page_hash
+        self.body_hash = body_hash
+        self.is_unchanged = is_unchanged
+        self.error = error
+
+
+class RssSourceExtractor:
+    """
+    Extractor strategy for RSS / Atom / Web feeds using WebToolsWrapper.
+    Handles network download, hash calculation, and feed entry parsing.
+    """
+
+    @classmethod
+    def extract(
+        cls,
+        source: SourcesTable,
+        op_data: SourceOperationalData,
+        session: Session,
+    ) -> FetchExtractionResult:
         try:
             web_client = WebToolsWrapper(url=source.url, session=session, timeout_s=15)
             response = web_client.get_response()
@@ -256,15 +497,7 @@ class SourceService:
             logger.warning(
                 "Failed to fetch source %s (%s): %s", source.id, source.url, err
             )
-            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
-            op_data.date_fetched = datetime.now(timezone.utc)
-            session.commit()
-            return {
-                "success": False,
-                "source_id": source.id,
-                "error": f"Network download error: {err}",
-                "status": "error",
-            }
+            return FetchExtractionResult(error=f"Network download error: {err}")
 
         # Calculate hashes
         page_hash = hashlib.sha256(content_bytes).digest()
@@ -272,218 +505,86 @@ class SourceService:
 
         # Check for operational hash equality
         if op_data.page_hash and op_data.page_hash == page_hash:
-            logger.info(
-                "Source %s (%s) hash unchanged, skipping entry parse",
-                source.id,
-                source.title,
+            return FetchExtractionResult(
+                page_hash=page_hash,
+                body_hash=body_hash,
+                is_unchanged=True,
             )
-            op_data.date_fetched = datetime.now(timezone.utc)
-            op_data.date_successful_fetch = datetime.now(timezone.utc)
-            op_data.consecutive_errors = 0
-            session.commit()
-            return {
-                "success": True,
-                "source_id": source.id,
-                "status": "unchanged",
-                "message": "Content unchanged (hash match).",
-                "entries_added": 0,
-            }
 
         # Parse RSS / Feed entries
         try:
             raw_entries = web_client.get_entries() or []
         except Exception as err:
             logger.warning("Error parsing RSS feed for source %s: %s", source.id, err)
-            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
-            op_data.date_fetched = datetime.now(timezone.utc)
-            session.commit()
-            return {
-                "success": False,
-                "source_id": source.id,
-                "error": f"Feed parsing error: {err}",
-                "status": "error",
-            }
+            return FetchExtractionResult(error=f"Feed parsing error: {err}")
 
-        builder = EntryBuilder(session=session)
-        entries_added = 0
-
-        for item in raw_entries:
-            link = (item.get("link") or "").strip()
-            if not link:
-                continue
-
-            title = item.get("title")
-            desc = item.get("description")
-            thumb = item.get("thumbnail")
-            author = item.get("author")
-            album = item.get("album")
-            lang = item.get("language")
-            date_published = item.get("date_published")
-            tags = item.get("tags") if isinstance(item.get("tags"), list) else None
-
-            created_entry = builder.build_and_save(
-                link=link,
-                title=title,
-                description=desc,
-                source=source,
-                thumbnail=thumb,
-                author=author,
-                album=album,
-                language=lang,
-                date_published=date_published,
-                tags=tags,
-                commit=False,
-            )
-            if created_entry is not None:
-                entries_added += 1
-
-        session.flush()
-
-        # Update operational metrics
-        total_source_entries = (
-            session.execute(
-                select(func.count(LinkDataModel.id)).where(
-                    LinkDataModel.source_id == source.id
-                )
-            ).scalar()
-            or 0
+        return FetchExtractionResult(
+            raw_entries=raw_entries,
+            page_hash=page_hash,
+            body_hash=body_hash,
+            is_unchanged=False,
         )
 
-        now_utc = datetime.now(timezone.utc)
-        op_data.page_hash = page_hash
-        op_data.body_hash = body_hash
-        op_data.number_of_entries = total_source_entries
-        op_data.consecutive_errors = 0
-        op_data.date_fetched = now_utc
-        op_data.date_successful_fetch = now_utc
 
-        session.commit()
-
-        return {
-            "success": True,
-            "source_id": source.id,
-            "status": "completed",
-            "message": f"Successfully refreshed {source.title}: {entries_added} new entries added.",
-            "entries_added": entries_added,
-        }
+class EmailSourceExtractor:
+    """
+    Extractor strategy for email sources using EmailReader.
+    Handles credentials lookup, IMAP connection, and email retrieval.
+    Does not compute content hashes.
+    """
 
     @classmethod
-    def get_email_link(cls, source, creds, email):
-        return "email://{}/{}/{}".format(
-            source.url, creds.username, email.id
-        )
-
-    @classmethod
-    def _execute_fetch_email(cls, source, op_data, session: Session) -> Dict[str, Any]:
-        # Download content using WebToolsWrapper (BaseUrl / RemoteUrl)
-        web_client = None
+    def extract(
+        cls,
+        source: SourcesTable,
+        op_data: SourceOperationalData,
+        session: Session,
+    ) -> FetchExtractionResult:
         try:
             creds_repo = CredentialsRepository(session=session)
             creds = creds_repo.get_credential(source.credentials_id)
+            if not creds:
+                raise ValueError(
+                    f"Credentials not found for email source {source.id} (credentials_id={source.credentials_id})"
+                )
 
             web_client = EmailReader(server=source.url)
-            connect_status = web_client.connect(username=creds.username, password=creds.password)
+            connect_status = web_client.connect(
+                username=creds.username, password=creds.password
+            )
 
             if not connect_status:
-                raise ConnectionError( f"Email connection error when fetching {source.url}")
+                raise ConnectionError(
+                    f"Email connection error when fetching {source.url}"
+                )
 
         except Exception as err:
             logger.warning(
                 "Failed to fetch source %s (%s): %s", source.id, source.url, err
             )
-            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
-            op_data.date_fetched = datetime.now(timezone.utc)
-            session.commit()
-            return {
-                "success": False,
-                "source_id": source.id,
-                "error": f"Network download error: {err}",
-                "status": "error",
-            }
+            return FetchExtractionResult(error=f"Network download error: {err}")
 
+        # Retrieve emails and convert to raw entry dictionaries
         try:
             raw_entries = []
             emails = web_client.get_emails()
             for email in emails:
-                link_data = {}
-                link_data["title"] = email.title
-                link_data["date_published"] = email.date_published
-                link_data["description"] = email.body
-                link_data["author"] = email.author
-                link_data["link"] = cls.get_email_link(source, creds, email)
-                raw_entries.append(link_data)
-
-        except Exception as err:
-            logger.warning("Error parsing RSS feed for source %s: %s", source.id, err)
-            op_data.consecutive_errors = (op_data.consecutive_errors or 0) + 1
-            op_data.date_fetched = datetime.now(timezone.utc)
-            session.commit()
-            return {
-                "success": False,
-                "source_id": source.id,
-                "error": f"Feed parsing error: {err}",
-                "status": "error",
-            }
-
-        builder = EntryBuilder(session=session)
-        entries_added = 0
-
-        for item in raw_entries:
-            link = (item.get("link") or "").strip()
-            if not link:
-                continue
-
-            title = item.get("title")
-            desc = item.get("description")
-            thumb = item.get("thumbnail")
-            author = item.get("author")
-            album = item.get("album")
-            lang = item.get("language")
-            date_published = item.get("date_published")
-            tags = item.get("tags") if isinstance(item.get("tags"), list) else None
-
-            created_entry = builder.build_and_save(
-                link=link,
-                title=title,
-                description=desc,
-                source=source,
-                thumbnail=thumb,
-                author=author,
-                album=album,
-                language=lang,
-                date_published=date_published,
-                tags=tags,
-                commit=False,
-            )
-            if created_entry is not None:
-                entries_added += 1
-
-        session.flush()
-
-        # Update operational metrics
-        total_source_entries = (
-            session.execute(
-                select(func.count(LinkDataModel.id)).where(
-                    LinkDataModel.source_id == source.id
+                raw_entries.append(
+                    {
+                        "title": email.title,
+                        "date_published": email.date_published,
+                        "description": email.body,
+                        "author": email.author,
+                        "link": SourceService.get_email_link(source, creds, email),
+                    }
                 )
-            ).scalar()
-            or 0
+        except Exception as err:
+            logger.warning("Error reading emails for source %s: %s", source.id, err)
+            return FetchExtractionResult(error=f"Email reading error: {err}")
+
+        return FetchExtractionResult(
+            raw_entries=raw_entries,
+            page_hash=None,
+            body_hash=None,
+            is_unchanged=False,
         )
-
-        now_utc = datetime.now(timezone.utc)
-        op_data.page_hash = None
-        op_data.body_hash = None
-        op_data.number_of_entries = total_source_entries
-        op_data.consecutive_errors = 0
-        op_data.date_fetched = now_utc
-        op_data.date_successful_fetch = now_utc
-
-        session.commit()
-
-        return {
-            "success": True,
-            "source_id": source.id,
-            "status": "completed",
-            "message": f"Successfully refreshed {source.title}: {entries_added} new entries added.",
-            "entries_added": entries_added,
-        }

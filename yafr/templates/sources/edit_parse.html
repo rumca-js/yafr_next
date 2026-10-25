@@ -96,6 +96,21 @@
           >
         </div>
 
+        <!-- Language Code -->
+        <div class="mb-3">
+          <label for="language" class="form-label fw-semibold">Default Language Code</label>
+          <input 
+            type="text" 
+            name="language" 
+            id="language" 
+            class="form-control" 
+            placeholder="e.g. en, pl, de" 
+            maxlength="10"
+            value="{{ source.language if source and source.language else '' }}"
+          >
+          <div class="form-text">Optional default language code (e.g. <code>en</code>, <code>pl</code>). Ingested entries inherit this language when none is specified.</div>
+        </div>
+
         <!-- Fetch Period -->
         <div class="mb-3">
           <label for="fetch_period" class="form-label fw-semibold">Fetch Period (seconds)</label>

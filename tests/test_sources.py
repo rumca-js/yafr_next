@@ -172,6 +172,7 @@ class TestSourceRoutes(unittest.TestCase):
                 "url": "https://feeds.arstechnica.com/arstechnica/index",
                 "enabled": "on",
                 "auto_tag": "tech, hardware",
+                "language": "en",
                 "fetch_period": "7200",
             },
             follow_redirects=True,
@@ -180,6 +181,7 @@ class TestSourceRoutes(unittest.TestCase):
         html = res_post.get_data(as_text=True)
         self.assertIn("Ars Technica", html)
         self.assertIn("7,200s", html)
+        self.assertIn("badge-source-language", html)
 
         # Verify in DB
         created = self.repo.get_by_url(
@@ -189,6 +191,7 @@ class TestSourceRoutes(unittest.TestCase):
         self.assertEqual(created.title, "Ars Technica")
         self.assertEqual(created.source_type, "RSS")
         self.assertEqual(created.fetch_period, 7200)
+        self.assertEqual(created.language, "en")
 
     def test_edit_rss_source(self):
         """GET and POST /sources/<id>/edit-rss updates existing RSS source."""
@@ -199,6 +202,7 @@ class TestSourceRoutes(unittest.TestCase):
                 "url": "https://news.ycombinator.com/rss",
                 "enabled": "on",
                 "auto_tag": "tech, yc",
+                "language": "en",
                 "fetch_period": "3600",
             },
             follow_redirects=True,
@@ -207,6 +211,7 @@ class TestSourceRoutes(unittest.TestCase):
         updated = self.repo.get_by_id(self.s1.id)
         self.assertEqual(updated.title, "Hacker News Frontpage")
         self.assertEqual(updated.auto_tag, "tech, yc")
+        self.assertEqual(updated.language, "en")
         self.assertEqual(updated.fetch_period, 3600)
 
     def test_add_and_edit_email_source(self):

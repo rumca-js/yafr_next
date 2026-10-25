@@ -241,6 +241,7 @@ def source_add_rss():
         auto_tag = request.form.get("auto_tag", "").strip()
         favicon = request.form.get("favicon", "").strip() or None
         category_name = request.form.get("category_name", "").strip() or None
+        language = request.form.get("language", "").strip() or None
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url:
@@ -260,6 +261,7 @@ def source_add_rss():
             auto_tag=auto_tag,
             favicon=favicon,
             category_name=category_name,
+            language=language,
             fetch_period=fetch_period,
         )
         flash(f"RSS source '{new_source.title}' created successfully.", "success")
@@ -286,6 +288,7 @@ def source_edit_rss(id: int):
         auto_tag = request.form.get("auto_tag", "").strip()
         favicon = request.form.get("favicon", "").strip() or None
         category_name = request.form.get("category_name", "").strip() or None
+        language = request.form.get("language", "").strip() or None
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         source_repo.update_source(
@@ -296,6 +299,7 @@ def source_edit_rss(id: int):
             auto_tag=auto_tag,
             favicon=favicon,
             category_name=category_name,
+            language=language,
             fetch_period=fetch_period,
         )
         flash(f"Source '{title}' updated successfully.", "success")
@@ -320,6 +324,7 @@ def source_add_email():
         password = request.form.get("password", "")
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        language = request.form.get("language", "").strip() or None
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url or not username:
@@ -360,6 +365,7 @@ def source_add_email():
             enabled=enabled,
             auto_tag=auto_tag,
             credentials_id=creds.id,
+            language=language,
             fetch_period=fetch_period,
         )
         flash(f"Email source '{new_source.title}' configured successfully.", "success")
@@ -394,6 +400,7 @@ def source_edit_email(id: int):
         password = request.form.get("password", "")
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        language = request.form.get("language", "").strip() or None
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if credentials:
@@ -435,6 +442,7 @@ def source_edit_email(id: int):
             enabled=enabled,
             auto_tag=auto_tag,
             credentials_id=credentials.id,
+            language=language,
             fetch_period=fetch_period,
         )
         flash(f"Email source '{title}' updated successfully.", "success")
@@ -459,6 +467,7 @@ def source_add_parse():
         xpath = request.form.get("xpath", "").strip()
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        language = request.form.get("language", "").strip() or None
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url:
@@ -472,6 +481,7 @@ def source_add_parse():
             xpath=xpath,
             enabled=enabled,
             auto_tag=auto_tag,
+            language=language,
             fetch_period=fetch_period,
         )
         flash(f"Parse source '{new_source.title}' configured successfully.", "success")
@@ -497,6 +507,7 @@ def source_edit_parse(id: int):
         xpath = request.form.get("xpath", "").strip()
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        language = request.form.get("language", "").strip() or None
         fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         source_repo.update_source(
@@ -506,6 +517,7 @@ def source_edit_parse(id: int):
             xpath=xpath,
             enabled=enabled,
             auto_tag=auto_tag,
+            language=language,
             fetch_period=fetch_period,
         )
         flash(f"Parse source '{title}' updated successfully.", "success")

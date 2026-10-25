@@ -374,6 +374,87 @@ class TestSourceServiceWithWrapper(unittest.TestCase):
             ).scalar_one()
             self.assertEqual(op_data.consecutive_errors, 1)
 
+    def test_fetch_email_source_success(self):
+        """
+        SourceService._execute_fetch_email extracts emails via EmailReader and creates LinkDataModel rows.
+        """
+        from linkarchivetools.model.definitions import Credentials, User
+
+        user = self.session.execute(select(User).limit(1)).scalar_one_or_none()
+        if not user:
+            user = User(
+                username="testuser",
+                password="",
+                first_name="",
+                last_name="",
+                email="",
+                is_superuser=True,
+                is_active=True,
+                is_staff=True,
+            )
+            self.session.add(user)
+            self.session.flush()
+
+        creds = Credentials(
+            name="Test Mail Creds",
+            credential_type="email",
+            username="reader@example.com",
+            password="secretpassword",
+            user_id=user.id,
+        )
+        self.session.add(creds)
+        self.session.flush()
+
+        email_source = self.source_repo.add_source(
+            url="imap.example.com",
+            title="Tech Newsletter",
+            source_type="EMAIL",
+            credentials_id=creds.id,
+            enabled=True,
+        )
+
+        mock_email = MagicMock()
+        mock_email.id = "msg123"
+        mock_email.title = "Weekly Digest #42"
+        mock_email.date_published = datetime(2026, 5, 1, 12, 0, 0, tzinfo=timezone.utc)
+        mock_email.body = "Here are the top stories of the week."
+        mock_email.author = "Weekly Editor"
+
+        with patch("yafr.services.source_service.EmailReader") as MockEmailReader:
+            instance = MockEmailReader.return_value
+            instance.connect.return_value = True
+            instance.get_emails.return_value = [mock_email]
+
+            res = SourceService.fetch_source(email_source.id, session=self.session)
+            self.assertTrue(res.get("success"))
+            self.assertEqual(res.get("entries_added"), 1)
+
+            # Verify in DB
+            entries = (
+                self.session.execute(
+                    select(LinkDataModel).where(
+                        LinkDataModel.source_id == email_source.id
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0].title, "Weekly Digest #42")
+            self.assertEqual(entries[0].link, "email://imap.example.com/reader@example.com/msg123")
+            self.assertEqual(entries[0].description, "Here are the top stories of the week.")
+
+            # Operational data: email sources do not store page_hash / body_hash
+            op_data = self.session.execute(
+                select(SourceOperationalData).where(
+                    SourceOperationalData.source_id == email_source.id
+                )
+            ).scalar_one()
+            self.assertEqual(op_data.number_of_entries, 1)
+            self.assertIsNone(op_data.page_hash)
+            self.assertIsNone(op_data.body_hash)
+            self.assertEqual(op_data.consecutive_errors, 0)
+
 
 class TestWebToolsStatusApi(unittest.TestCase):
     """

@@ -92,6 +92,12 @@
               <span class="badge bg-light text-secondary border" id="badge-source-fetch-period">
                 <i class="bi bi-clock-history me-1"></i>Fetch Period: {{ "{:,}".format(source.fetch_period) ~ 's' if source.fetch_period else 'Default (3,600s)' }}
               </span>
+
+              {% if source.language %}
+                <span class="badge bg-secondary-subtle text-secondary border text-uppercase" id="badge-source-language" title="Default Language">
+                  <i class="bi bi-translate me-1"></i>{{ source.language }}
+                </span>
+              {% endif %}
             </div>
 
             <!-- Feed URL Link -->
