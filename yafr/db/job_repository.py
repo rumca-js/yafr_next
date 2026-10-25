@@ -299,6 +299,17 @@ class JobRepository(BaseRepository[BackgroundJob]):
         self.session.commit()
         return result.rowcount or 0
 
+    def clear_error_jobs(self) -> int:
+        """
+        Clears all records in the backgroundjob table that have errors > 0.
+
+        :return: Number of deleted rows
+        """
+        stmt = delete(BackgroundJob).where(BackgroundJob.errors > 0)
+        result = self.session.execute(stmt)
+        self.session.commit()
+        return result.rowcount or 0
+
     def clear_history(self) -> int:
         """
         Clears all records in the backgroundjobhistory table.

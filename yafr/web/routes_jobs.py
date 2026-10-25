@@ -6,7 +6,7 @@ background task jobs in the backgroundjob SQLite table.
 """
 
 import math
-from flask import Blueprint, render_template, request
+from flask import Blueprint, flash, redirect, render_template, request, url_for
 from yafr.db import get_session
 from yafr.services import JobService
 
@@ -84,6 +84,7 @@ def jobs_list():
 
     distinct_job_types = JobService.get_job_types(session=session)
     error_jobs_count = JobService.count_error_jobs(session=session)
+    total_jobs_in_db = JobService.count_jobs(session=session)
 
     return render_template(
         "jobs/list.html",
@@ -96,7 +97,33 @@ def jobs_list():
         job_types=distinct_job_types,
         total_results=total_results,
         error_jobs_count=error_jobs_count,
+        total_jobs_in_db=total_jobs_in_db,
         page=page,
         total_pages=total_pages,
         per_page=per_page,
     )
+
+
+@jobs_bp.route("/jobs/clear-all", methods=["POST"])
+def jobs_clear_all():
+    """
+    Clears all background jobs and redirects to JobsView.
+    """
+    session = get_session()
+    deleted_count = JobService.clear_all_jobs(session=session)
+    flash(f"Successfully cleared all {deleted_count} jobs from the queue.", "success")
+    return redirect(url_for("jobs.jobs_list"))
+
+
+@jobs_bp.route("/jobs/clear-errors", methods=["POST"])
+def jobs_clear_errors():
+    """
+    Clears all erroneous background jobs (errors > 0) and redirects to JobsView.
+    """
+    session = get_session()
+    deleted_count = JobService.clear_error_jobs(session=session)
+    flash(
+        f"Successfully cleared {deleted_count} erroneous jobs from the queue.",
+        "success",
+    )
+    return redirect(url_for("jobs.jobs_list"))

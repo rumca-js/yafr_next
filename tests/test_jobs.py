@@ -141,6 +141,33 @@ class TestJobRepositoryAndService(unittest.TestCase):
                 [self.j1.id], action="invalid-action", session=self.session
             )
 
+    def test_clear_error_jobs_and_all_jobs(self):
+        """Verifies clearing erroneous jobs and clearing all jobs."""
+        # We start with 3 jobs: j1 (0 errors), j2 (0 errors), j3 (1 error)
+        self.assertEqual(self.repo.count_error_jobs(), 1)
+        self.assertEqual(self.repo.count_jobs(), 3)
+
+        # Clear error jobs only
+        deleted_errors = self.repo.clear_error_jobs()
+        self.assertEqual(deleted_errors, 1)
+        self.assertEqual(self.repo.count_error_jobs(), 0)
+        self.assertEqual(self.repo.count_jobs(), 2)
+
+        # Clear remaining jobs
+        deleted_all = self.repo.clear_all_jobs()
+        self.assertEqual(deleted_all, 2)
+        self.assertEqual(self.repo.count_jobs(), 0)
+
+    def test_service_clear_jobs(self):
+        """Verifies JobService.clear_error_jobs and clear_all_jobs."""
+        self.assertEqual(JobService.count_error_jobs(session=self.session), 1)
+        deleted_errors = JobService.clear_error_jobs(session=self.session)
+        self.assertEqual(deleted_errors, 1)
+
+        deleted_all = JobService.clear_all_jobs(session=self.session)
+        self.assertEqual(deleted_all, 2)
+        self.assertEqual(JobService.count_jobs(session=self.session), 0)
+
 
 class TestJobWebRoutes(unittest.TestCase):
     """
@@ -292,6 +319,52 @@ class TestJobWebRoutes(unittest.TestCase):
             json={"job_ids": [self.job.id], "action": "invalid-action"},
         )
         self.assertEqual(res.status_code, 400)
+
+    def test_api_clear_all_jobs(self):
+        """POST /api/jobs/clear-all deletes all queued jobs."""
+        self.repo.enqueue_job(job="job2", subject="sub2")
+        self.assertEqual(self.repo.count_jobs(), 2)
+
+        res = self.client.post("/api/jobs/clear-all")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["deleted_count"], 2)
+        self.assertEqual(self.repo.count_jobs(), 0)
+
+    def test_api_clear_error_jobs(self):
+        """POST /api/jobs/clear-errors deletes only jobs with failures."""
+        j_err = self.repo.enqueue_job(job="job_failing", subject="sub_err")
+        self.repo.record_job_error(j_err.id)
+        self.assertEqual(self.repo.count_error_jobs(), 1)
+        self.assertEqual(self.repo.count_jobs(), 2)
+
+        res = self.client.post("/api/jobs/clear-errors")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["deleted_count"], 1)
+        self.assertEqual(self.repo.count_error_jobs(), 0)
+        self.assertEqual(self.repo.count_jobs(), 1)
+
+    def test_routes_clear_all_and_clear_errors(self):
+        """POST /jobs/clear-all and /jobs/clear-errors redirect and flash."""
+        j_err = self.repo.enqueue_job(job="job_err", subject="err_sub")
+        self.repo.record_job_error(j_err.id)
+
+        # Clear errors via web route
+        res_err = self.client.post("/jobs/clear-errors", follow_redirects=True)
+        self.assertEqual(res_err.status_code, 200)
+        self.assertIn(
+            "Successfully cleared 1 erroneous jobs", res_err.get_data(as_text=True)
+        )
+        self.assertEqual(self.repo.count_error_jobs(), 0)
+
+        # Clear all via web route
+        res_all = self.client.post("/jobs/clear-all", follow_redirects=True)
+        self.assertEqual(res_all.status_code, 200)
+        self.assertIn("Successfully cleared all 1 jobs", res_all.get_data(as_text=True))
+        self.assertEqual(self.repo.count_jobs(), 0)
 
 
 if __name__ == "__main__":

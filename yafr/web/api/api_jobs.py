@@ -264,3 +264,43 @@ def batch_action():
     except Exception as err:
         logger.error("Failed to execute batch job action: %s", err)
         return api_response(success=False, error=str(err), status_code=500)
+
+
+@api_jobs_bp.route("/clear-all", methods=["POST"])
+def clear_all_jobs():
+    """
+    Clears all background jobs from the queue.
+    """
+    try:
+        session = get_session()
+        deleted_count = JobService.clear_all_jobs(session=session)
+        return jsonify(
+            {
+                "success": True,
+                "deleted_count": deleted_count,
+                "message": f"Successfully cleared all {deleted_count} jobs.",
+            }
+        )
+    except Exception as err:
+        logger.error("Failed to clear all jobs: %s", err)
+        return api_response(success=False, error=str(err), status_code=500)
+
+
+@api_jobs_bp.route("/clear-errors", methods=["POST"])
+def clear_error_jobs():
+    """
+    Clears all erroneous background jobs (errors > 0) from the queue.
+    """
+    try:
+        session = get_session()
+        deleted_count = JobService.clear_error_jobs(session=session)
+        return jsonify(
+            {
+                "success": True,
+                "deleted_count": deleted_count,
+                "message": f"Successfully cleared {deleted_count} erroneous jobs.",
+            }
+        )
+    except Exception as err:
+        logger.error("Failed to clear error jobs: %s", err)
+        return api_response(success=False, error=str(err), status_code=500)

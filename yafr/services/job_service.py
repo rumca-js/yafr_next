@@ -225,3 +225,27 @@ class JobService:
         sess = session or get_session()
         repo = JobRepository(sess)
         return repo.count_error_jobs()
+
+    @classmethod
+    def clear_all_jobs(cls, session: Optional[Session] = None) -> int:
+        """
+        Deletes all jobs from the queue.
+
+        :param session: Optional active database session
+        :return: Number of deleted jobs
+        """
+        sess = session or get_session()
+        repo = JobRepository(sess)
+        return repo.clear_all_jobs()
+
+    @classmethod
+    def clear_error_jobs(cls, session: Optional[Session] = None) -> int:
+        """
+        Deletes all jobs with errors > 0 from the queue.
+
+        :param session: Optional active database session
+        :return: Number of deleted jobs
+        """
+        sess = session or get_session()
+        repo = JobRepository(sess)
+        return repo.clear_error_jobs()

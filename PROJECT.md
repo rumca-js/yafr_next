@@ -93,6 +93,7 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - displays list of jobs
  - allows to create a job
  - user can select jobs to remove, or pause, or resume
+ - user can clear all jobs or clear all erroneous jobs
  - user should be able to select order of jobs (by enabled, date_created, errors)
  - user should be able to filter by type (infos, errors, warnings, etc)
 

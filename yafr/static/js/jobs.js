@@ -6,7 +6,7 @@
  */
 document.addEventListener("DOMContentLoaded", function () {
   var pendingDeleteId = null;
-  var isBatchDelete = false;
+  var deleteMode = null; // 'single', 'batch', 'clear_all', 'clear_errors'
 
   // Helper: get array of selected job IDs
   function getSelectedJobIds() {
@@ -106,7 +106,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!jobId) return;
 
     pendingDeleteId = jobId;
-    isBatchDelete = false;
+    deleteMode = "single";
 
     $("#delete-job-modal-text").html(
       "Are you sure you want to permanently delete background job <strong>#" +
@@ -124,12 +124,46 @@ document.addEventListener("DOMContentLoaded", function () {
     if (ids.length === 0) return;
 
     pendingDeleteId = null;
-    isBatchDelete = true;
+    deleteMode = "batch";
 
     $("#delete-job-modal-text").html(
       "Are you sure you want to permanently delete <strong>" +
         ids.length +
         "</strong> selected background jobs?"
+    );
+
+    var modal = new bootstrap.Modal(document.getElementById("deleteJobModal"));
+    modal.show();
+  });
+
+  // 5b. Clear All Jobs Button (opens confirmation modal)
+  $("#clear-all-jobs-btn").on("click", function () {
+    var count = $(this).data("count");
+    pendingDeleteId = null;
+    deleteMode = "clear_all";
+
+    var countText = count !== undefined ? " (" + count + ")" : "";
+    $("#delete-job-modal-text").html(
+      "Are you sure you want to permanently delete <strong>ALL" +
+        countText +
+        "</strong> background jobs from the queue?"
+    );
+
+    var modal = new bootstrap.Modal(document.getElementById("deleteJobModal"));
+    modal.show();
+  });
+
+  // 5c. Clear Erroneous Jobs Button (opens confirmation modal)
+  $("#clear-error-jobs-btn").on("click", function () {
+    var count = $(this).data("count");
+    pendingDeleteId = null;
+    deleteMode = "clear_errors";
+
+    var countText = count !== undefined ? " (" + count + ")" : "";
+    $("#delete-job-modal-text").html(
+      "Are you sure you want to permanently delete all <strong>erroneous" +
+        countText +
+        "</strong> background jobs from the queue?"
     );
 
     var modal = new bootstrap.Modal(document.getElementById("deleteJobModal"));
@@ -143,7 +177,39 @@ document.addEventListener("DOMContentLoaded", function () {
       '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Deleting...'
     );
 
-    if (isBatchDelete) {
+    if (deleteMode === "clear_all") {
+      $.ajax({
+        url: "/api/jobs/clear-all",
+        type: "POST",
+        dataType: "json",
+        success: function (resp) {
+          var modalEl = document.getElementById("deleteJobModal");
+          var modalInstance = bootstrap.Modal.getInstance(modalEl);
+          if (modalInstance) modalInstance.hide();
+          window.location.reload();
+        },
+        error: function () {
+          btn.prop("disabled", false).html('<i class="bi bi-trash me-1"></i>Delete');
+          alert("Network error clearing all jobs.");
+        },
+      });
+    } else if (deleteMode === "clear_errors") {
+      $.ajax({
+        url: "/api/jobs/clear-errors",
+        type: "POST",
+        dataType: "json",
+        success: function (resp) {
+          var modalEl = document.getElementById("deleteJobModal");
+          var modalInstance = bootstrap.Modal.getInstance(modalEl);
+          if (modalInstance) modalInstance.hide();
+          window.location.reload();
+        },
+        error: function () {
+          btn.prop("disabled", false).html('<i class="bi bi-trash me-1"></i>Delete');
+          alert("Network error clearing erroneous jobs.");
+        },
+      });
+    } else if (deleteMode === "batch") {
       var ids = getSelectedJobIds();
       $.ajax({
         url: "/api/jobs/batch-action",
