@@ -100,6 +100,29 @@ class JobService:
         return repo.get_by_id(BackgroundJob, job_id)
 
     @classmethod
+    def find_job(
+        cls,
+        job: str,
+        subject: str,
+        task: Optional[str] = None,
+        args: Optional[str] = None,
+        session: Optional[Session] = None,
+    ) -> Optional[BackgroundJob]:
+        """
+        Searches for an existing background job matching the given properties.
+
+        :param job: Job type identifier
+        :param subject: Target resource string
+        :param task: Optional sub-task
+        :param args: Optional arguments string
+        :param session: Optional active database session
+        :return: Matching BackgroundJob instance or None
+        """
+        sess = session or get_session()
+        repo = JobRepository(sess)
+        return repo.find_job(job=job, subject=subject, task=task, args=args)
+
+    @classmethod
     def create_job(
         cls,
         job: str,
@@ -108,10 +131,11 @@ class JobService:
         args: Optional[str] = None,
         priority: int = 1,
         enabled: bool = True,
+        raise_on_duplicate: bool = False,
         session: Optional[Session] = None,
     ) -> BackgroundJob:
         """
-        Enqueues a new background task.
+        Enqueues a new background task, avoiding duplicate jobs.
 
         :param job: Job type identifier (e.g. 'link-update-data', 'process-source')
         :param subject: Target URL, source ID, or resource string
@@ -119,8 +143,9 @@ class JobService:
         :param args: Optional arguments (e.g. JSON string)
         :param priority: Integer priority (lower = higher priority)
         :param enabled: Ready status (default: True)
+        :param raise_on_duplicate: If True, raises ValueError if identical job already exists
         :param session: Optional active database session
-        :return: Newly created BackgroundJob instance
+        :return: Newly created or existing BackgroundJob instance
         """
         sess = session or get_session()
         repo = JobRepository(sess)
@@ -131,6 +156,7 @@ class JobService:
             args=args,
             priority=priority,
             enabled=enabled,
+            raise_on_duplicate=raise_on_duplicate,
         )
 
     @classmethod

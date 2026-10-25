@@ -168,6 +168,47 @@ class TestJobRepositoryAndService(unittest.TestCase):
         self.assertEqual(deleted_all, 2)
         self.assertEqual(JobService.count_jobs(session=self.session), 0)
 
+    def test_duplicate_job_prevention(self):
+        """Verifies that an identical second job is not added to the queue."""
+        initial_count = self.repo.count_jobs()
+
+        # Enqueue identical job with same job, subject, task, and args as self.j1
+        dup = self.repo.enqueue_job(
+            job="process-source",
+            subject="https://news.ycombinator.com/rss",
+            task="fetch feed",
+        )
+        self.assertEqual(dup.id, self.j1.id)
+        self.assertEqual(self.repo.count_jobs(), initial_count)
+
+        # Enqueue with different task -> should be added
+        different_task = self.repo.enqueue_job(
+            job="process-source",
+            subject="https://news.ycombinator.com/rss",
+            task="custom task",
+        )
+        self.assertNotEqual(different_task.id, self.j1.id)
+        self.assertEqual(self.repo.count_jobs(), initial_count + 1)
+
+        # Enqueue with different args -> should be added
+        different_args = self.repo.enqueue_job(
+            job="process-source",
+            subject="https://news.ycombinator.com/rss",
+            task="fetch feed",
+            args='{"extra": true}',
+        )
+        self.assertNotEqual(different_args.id, self.j1.id)
+        self.assertEqual(self.repo.count_jobs(), initial_count + 2)
+
+        # Calling with raise_on_duplicate=True raises ValueError on identical job
+        with self.assertRaises(ValueError):
+            self.repo.enqueue_job(
+                job="process-source",
+                subject="https://news.ycombinator.com/rss",
+                task="fetch feed",
+                raise_on_duplicate=True,
+            )
+
 
 class TestJobWebRoutes(unittest.TestCase):
     """
@@ -244,6 +285,32 @@ class TestJobWebRoutes(unittest.TestCase):
         self.assertIsNotNone(job)
         self.assertEqual(job.job, "link-update-data")
         self.assertEqual(job.priority, 2)
+
+    def test_api_create_duplicate_job_rejected(self):
+        """POST /api/jobs/create rejects duplicate job submission with 409."""
+        payload = {
+            "job": "cleanup",
+            "subject": "cache",
+            "task": "temp-files",
+            "args": json.dumps({"older_than": 3600}),
+        }
+
+        # First request succeeds with 201
+        res1 = self.client.post("/api/jobs/create", json=payload)
+        self.assertEqual(res1.status_code, 201)
+        job_id = res1.get_json()["job_id"]
+
+        # Second request with identical properties fails with 409
+        res2 = self.client.post("/api/jobs/create", json=payload)
+        self.assertEqual(res2.status_code, 409)
+        data2 = res2.get_json()
+        self.assertFalse(data2["success"])
+        self.assertIn("already exists", data2["error"])
+        self.assertEqual(data2["job_id"], job_id)
+
+        # Confirm queue still has only 1 job for this task
+        matching = self.repo.list_jobs(job_type="cleanup")
+        self.assertEqual(len(matching), 1)
 
     def test_api_create_job_missing_fields(self):
         """POST /api/jobs/create returns 400 when required fields are missing."""

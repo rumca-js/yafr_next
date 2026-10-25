@@ -129,6 +129,25 @@ def create_job():
             enabled = bool(raw_enabled)
 
         session = get_session()
+        existing = JobService.find_job(
+            job=job,
+            subject=subject,
+            task=task,
+            args=args,
+            session=session,
+        )
+        if existing:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"A job with identical properties already exists in the queue (Job #{existing.id}).",
+                        "job_id": existing.id,
+                    }
+                ),
+                409,
+            )
+
         created_job = JobService.create_job(
             job=job,
             subject=subject,

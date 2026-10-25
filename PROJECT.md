@@ -94,6 +94,7 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - allows to create a job
  - user can select jobs to remove, or pause, or resume
  - user can clear all jobs or clear all erroneous jobs
+ - duplicate jobs with identical properties (job, subject, task, args) are not added to the queue
  - user should be able to select order of jobs (by enabled, date_created, errors)
  - user should be able to filter by type (infos, errors, warnings, etc)
 

@@ -24,6 +24,42 @@ class JobRepository(BaseRepository[BackgroundJob]):
     def __init__(self, session: Optional[Session] = None) -> None:
         super().__init__(session=session)
 
+    def find_job(
+        self,
+        job: str,
+        subject: str,
+        task: Optional[str] = None,
+        args: Optional[str] = None,
+    ) -> Optional[BackgroundJob]:
+        """
+        Finds an existing background job in the queue matching the given properties.
+
+        :param job: Job type identifier
+        :param subject: Target resource string
+        :param task: Optional sub-task
+        :param args: Optional arguments string
+        :return: Matching BackgroundJob instance or None
+        """
+        norm_task = task.strip() if isinstance(task, str) and task.strip() else None
+        norm_args = args.strip() if isinstance(args, str) and args.strip() else None
+
+        stmt = select(BackgroundJob).where(
+            BackgroundJob.job == job,
+            BackgroundJob.subject == subject,
+        )
+
+        if norm_task is not None:
+            stmt = stmt.where(BackgroundJob.task == norm_task)
+        else:
+            stmt = stmt.where((BackgroundJob.task == None) | (BackgroundJob.task == ""))
+
+        if norm_args is not None:
+            stmt = stmt.where(BackgroundJob.args == norm_args)
+        else:
+            stmt = stmt.where((BackgroundJob.args == None) | (BackgroundJob.args == ""))
+
+        return self.session.execute(stmt.limit(1)).scalar_one_or_none()
+
     def enqueue_job(
         self,
         job: str,
@@ -32,9 +68,11 @@ class JobRepository(BaseRepository[BackgroundJob]):
         args: Optional[str] = None,
         priority: int = 0,
         enabled: bool = True,
+        raise_on_duplicate: bool = False,
     ) -> BackgroundJob:
         """
         Enqueues a new background task in the backgroundjob table.
+        Prevents adding duplicate jobs with identical properties (job, subject, task, args).
 
         :param job: Job type identifier (e.g., 'JOB_PROCESS_SOURCE')
         :param subject: Target resource (e.g. source URL or entry ID)
@@ -42,13 +80,38 @@ class JobRepository(BaseRepository[BackgroundJob]):
         :param args: Optional JSON-encoded task arguments
         :param priority: Integer priority (lower number = higher priority)
         :param enabled: Whether the job is ready for execution
-        :return: Created BackgroundJob instance
+        :param raise_on_duplicate: If True, raises ValueError if an identical job already exists
+        :return: Created or existing BackgroundJob instance
         """
+        norm_task = task.strip() if isinstance(task, str) and task.strip() else None
+        norm_args = args.strip() if isinstance(args, str) and args.strip() else None
+
+        existing = self.find_job(
+            job=job,
+            subject=subject,
+            task=norm_task,
+            args=norm_args,
+        )
+        if existing:
+            if raise_on_duplicate:
+                raise ValueError(
+                    f"A job with the same properties already exists in the queue (Job #{existing.id})."
+                )
+            logger.info(
+                "Job '%s' for subject '%s' (task=%s, args=%s) already exists as #%d; skipping duplicate insert.",
+                job,
+                subject,
+                norm_task,
+                norm_args,
+                existing.id,
+            )
+            return existing
+
         bg_job = BackgroundJob(
             job=job,
             subject=subject,
-            task=task,
-            args=args,
+            task=norm_task,
+            args=norm_args,
             priority=priority,
             enabled=enabled,
             errors=0,

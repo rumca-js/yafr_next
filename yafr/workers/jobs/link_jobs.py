@@ -8,7 +8,10 @@ from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
+
 from linkarchivetools.model.definitions import BackgroundJob, LinkDataModel
+from webtoolkit import UrlLocation
+
 from yafr.db.entry_repository import EntryRepository
 from yafr.services.webtools_service import WebToolsWrapper
 from yafr.workers.jobs.base import BaseJobHandler
@@ -60,6 +63,14 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
                 "success": False,
                 "status": "error",
                 "error": f"Entry #{entry.id} has no link URL",
+            }
+
+        location = UrlLocation(url=entry.link)
+        if not location.is_web_link():
+            return {
+                "success": False,
+                "status": "error",
+                "error": f"Cannot update non web links: '{subject}'",
             }
 
         try:
