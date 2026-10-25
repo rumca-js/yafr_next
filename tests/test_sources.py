@@ -47,6 +47,7 @@ class TestSourceRoutes(unittest.TestCase):
             source_type="RSS",
             enabled=True,
             auto_tag="tech, startups",
+            fetch_period=1800,
         )
 
         self.s2 = self.repo.add_source(
@@ -140,6 +141,15 @@ class TestSourceRoutes(unittest.TestCase):
         self.assertIn("https://news.ycombinator.com/rss", html)
         self.assertIn("Operational Hashes", html)
         self.assertIn("Stored Entries", html)
+        self.assertIn("Fetch Period", html)
+        self.assertIn("1,800s", html)
+
+        # Also test source without custom fetch_period displays Default
+        res_s2 = self.client.get(f"/sources/{self.s2.id}")
+        self.assertEqual(res_s2.status_code, 200)
+        html_s2 = res_s2.get_data(as_text=True)
+        self.assertIn("Fetch Period", html_s2)
+        self.assertIn("Default", html_s2)
 
     def test_source_detail_404(self):
         """GET /sources/99999 returns 404 for non-existent source."""
@@ -152,6 +162,7 @@ class TestSourceRoutes(unittest.TestCase):
         res_get = self.client.get("/sources/new/rss")
         self.assertEqual(res_get.status_code, 200)
         self.assertIn("Add New RSS", res_get.get_data(as_text=True))
+        self.assertIn("fetch_period", res_get.get_data(as_text=True))
 
         # Test POST
         res_post = self.client.post(
@@ -161,12 +172,14 @@ class TestSourceRoutes(unittest.TestCase):
                 "url": "https://feeds.arstechnica.com/arstechnica/index",
                 "enabled": "on",
                 "auto_tag": "tech, hardware",
+                "fetch_period": "7200",
             },
             follow_redirects=True,
         )
         self.assertEqual(res_post.status_code, 200)
         html = res_post.get_data(as_text=True)
         self.assertIn("Ars Technica", html)
+        self.assertIn("7,200s", html)
 
         # Verify in DB
         created = self.repo.get_by_url(
@@ -175,6 +188,7 @@ class TestSourceRoutes(unittest.TestCase):
         self.assertIsNotNone(created)
         self.assertEqual(created.title, "Ars Technica")
         self.assertEqual(created.source_type, "RSS")
+        self.assertEqual(created.fetch_period, 7200)
 
     def test_edit_rss_source(self):
         """GET and POST /sources/<id>/edit-rss updates existing RSS source."""
@@ -185,6 +199,7 @@ class TestSourceRoutes(unittest.TestCase):
                 "url": "https://news.ycombinator.com/rss",
                 "enabled": "on",
                 "auto_tag": "tech, yc",
+                "fetch_period": "3600",
             },
             follow_redirects=True,
         )
@@ -192,6 +207,7 @@ class TestSourceRoutes(unittest.TestCase):
         updated = self.repo.get_by_id(self.s1.id)
         self.assertEqual(updated.title, "Hacker News Frontpage")
         self.assertEqual(updated.auto_tag, "tech, yc")
+        self.assertEqual(updated.fetch_period, 3600)
 
     def test_add_and_edit_email_source(self):
         """GET and POST /sources/new/email creates email source and credentials."""
@@ -203,6 +219,7 @@ class TestSourceRoutes(unittest.TestCase):
                 "username": "reader@example.com",
                 "password": "secretpassword",
                 "enabled": "on",
+                "fetch_period": "1800",
             },
             follow_redirects=True,
         )
@@ -212,6 +229,7 @@ class TestSourceRoutes(unittest.TestCase):
         created = self.repo.get_by_url("imaps://imap.example.com:993")
         self.assertIsNotNone(created)
         self.assertEqual(created.source_type, "EMAIL")
+        self.assertEqual(created.fetch_period, 1800)
         self.assertIsNotNone(created.credentials_id)
 
         cred = self.session.get(Credentials, created.credentials_id)
@@ -228,13 +246,16 @@ class TestSourceRoutes(unittest.TestCase):
                 "username": "newreader@example.com",
                 "password": "newpassword",
                 "enabled": "on",
+                "fetch_period": "900",
             },
             follow_redirects=True,
         )
         self.assertEqual(res_edit.status_code, 200)
         self.session.refresh(cred)
+        self.session.refresh(created)
         self.assertEqual(cred.username, "newreader@example.com")
         self.assertEqual(cred.password, "newpassword")
+        self.assertEqual(created.fetch_period, 900)
 
     def test_add_and_edit_parse_source(self):
         """GET and POST /sources/new/parse creates custom xpath source."""
@@ -245,6 +266,7 @@ class TestSourceRoutes(unittest.TestCase):
                 "url": "https://lobste.rs",
                 "xpath": "//span[@class='link']/a",
                 "enabled": "on",
+                "fetch_period": "86400",
             },
             follow_redirects=True,
         )
@@ -254,6 +276,23 @@ class TestSourceRoutes(unittest.TestCase):
         self.assertIsNotNone(created)
         self.assertEqual(created.source_type, "PARSE")
         self.assertEqual(created.xpath, "//span[@class='link']/a")
+        self.assertEqual(created.fetch_period, 86400)
+
+        # Edit parse source
+        res_edit = self.client.post(
+            f"/sources/{created.id}/edit-parse",
+            data={
+                "title": "Lobsters Scraping Updated",
+                "url": "https://lobste.rs",
+                "xpath": "//span[@class='link']/a",
+                "enabled": "on",
+                "fetch_period": "43200",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(res_edit.status_code, 200)
+        self.session.refresh(created)
+        self.assertEqual(created.fetch_period, 43200)
 
 
 class TestSourceApi(unittest.TestCase):

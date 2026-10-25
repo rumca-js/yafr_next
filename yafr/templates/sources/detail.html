@@ -88,6 +88,10 @@
                   <i class="bi bi-exclamation-circle me-1"></i>Outdated (Fetch Required)
                 </span>
               {% endif %}
+
+              <span class="badge bg-light text-secondary border" id="badge-source-fetch-period">
+                <i class="bi bi-clock-history me-1"></i>Fetch Period: {{ "{:,}".format(source.fetch_period) ~ 's' if source.fetch_period else 'Default (3,600s)' }}
+              </span>
             </div>
 
             <!-- Feed URL Link -->
@@ -166,7 +170,7 @@
   <!-- Operational Metrics & Hash Status Grid -->
   <div class="row g-3 mb-4">
     <!-- Metric 1: Stored Entries -->
-    <div class="col-12 col-sm-6 col-md-3">
+    <div class="col-12 col-sm-6 col-md-4 col-lg">
       <div class="card h-100 shadow-sm border">
         <div class="card-body">
           <span class="text-secondary small fw-semibold text-uppercase">Stored Entries</span>
@@ -179,7 +183,7 @@
     </div>
 
     <!-- Metric 2: Consecutive Errors -->
-    <div class="col-12 col-sm-6 col-md-3">
+    <div class="col-12 col-sm-6 col-md-4 col-lg">
       <div class="card h-100 shadow-sm border">
         <div class="card-body">
           <span class="text-secondary small fw-semibold text-uppercase">Consecutive Errors</span>
@@ -191,8 +195,39 @@
       </div>
     </div>
 
-    <!-- Metric 3: Last Fetched -->
-    <div class="col-12 col-sm-6 col-md-3">
+    <!-- Metric 3: Fetch Period -->
+    <div class="col-12 col-sm-6 col-md-4 col-lg">
+      <div class="card h-100 shadow-sm border">
+        <div class="card-body">
+          <span class="text-secondary small fw-semibold text-uppercase">Fetch Period</span>
+          <div class="h3 fw-bold mt-2 mb-0 text-dark" id="metric-fetch-period">
+            {% if source.fetch_period %}
+              {{ "{:,}".format(source.fetch_period) }}s
+            {% else %}
+              <span class="text-muted">Default</span>
+            {% endif %}
+          </div>
+          <small class="text-muted">
+            {% if source.fetch_period %}
+              {% if source.fetch_period >= 86400 and source.fetch_period % 86400 == 0 %}
+                Every {{ source.fetch_period // 86400 }} day{{ 's' if source.fetch_period // 86400 > 1 else '' }}
+              {% elif source.fetch_period >= 3600 and source.fetch_period % 3600 == 0 %}
+                Every {{ source.fetch_period // 3600 }} hour{{ 's' if source.fetch_period // 3600 > 1 else '' }}
+              {% elif source.fetch_period >= 60 and source.fetch_period % 60 == 0 %}
+                Every {{ source.fetch_period // 60 }} min
+              {% else %}
+                Every {{ "{:,}".format(source.fetch_period) }} seconds
+              {% endif %}
+            {% else %}
+              System default (3,600s)
+            {% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metric 4: Last Fetched -->
+    <div class="col-12 col-sm-6 col-md-4 col-lg">
       <div class="card h-100 shadow-sm border">
         <div class="card-body">
           <span class="text-secondary small fw-semibold text-uppercase">Last Fetched</span>
@@ -205,7 +240,7 @@
           </div>
           <small class="text-muted">
             {% if is_outdated %}
-              <span class="text-danger fw-semibold">Older than 1 hour</span>
+              <span class="text-danger fw-semibold">Refresh needed</span>
             {% else %}
               <span class="text-success">Up to date</span>
             {% endif %}
@@ -214,8 +249,8 @@
       </div>
     </div>
 
-    <!-- Metric 4: Last Successful Fetch -->
-    <div class="col-12 col-sm-6 col-md-3">
+    <!-- Metric 5: Last Successful Fetch -->
+    <div class="col-12 col-sm-6 col-md-4 col-lg">
       <div class="card h-100 shadow-sm border">
         <div class="card-body">
           <span class="text-secondary small fw-semibold text-uppercase">Last Success</span>

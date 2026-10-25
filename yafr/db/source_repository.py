@@ -90,6 +90,7 @@ class SourceRepository(BaseRepository[SourcesTable]):
         favicon: Optional[str] = None,
         credentials_id: Optional[int] = None,
         xpath: Optional[str] = None,
+        fetch_period: Optional[int] = None,
         **kwargs: Any,
     ) -> SourcesTable:
         """
@@ -102,6 +103,7 @@ class SourceRepository(BaseRepository[SourcesTable]):
         :param favicon: Favicon URL
         :param credentials_id: Foreign key to credentials (for email sources)
         :param xpath: XPath parser expression (for parse sources)
+        :param fetch_period: Custom refresh interval in seconds
         :return: Persisted SourcesTable instance
         """
         source = SourcesTable(
@@ -112,6 +114,7 @@ class SourceRepository(BaseRepository[SourcesTable]):
             favicon=favicon,
             credentials_id=credentials_id,
             xpath=xpath,
+            fetch_period=fetch_period,
             **kwargs,
         )
         self.session.add(source)

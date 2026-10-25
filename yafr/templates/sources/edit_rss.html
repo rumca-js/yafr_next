@@ -110,6 +110,21 @@
           >
         </div>
 
+        <!-- Fetch Period -->
+        <div class="mb-3">
+          <label for="fetch_period" class="form-label fw-semibold">Fetch Period (seconds)</label>
+          <input 
+            type="number" 
+            name="fetch_period" 
+            id="fetch_period" 
+            class="form-control" 
+            placeholder="e.g. 3600 (leave blank for system default)" 
+            min="1"
+            value="{{ source.fetch_period if source and source.fetch_period is not none else '' }}"
+          >
+          <div class="form-text">Interval between background refreshes in seconds (e.g. 1800 for 30m, 3600 for 1h, 86400 for 1 day). Leave empty for default.</div>
+        </div>
+
         <!-- Enabled Status -->
         <div class="form-check form-switch mb-4">
           <input 

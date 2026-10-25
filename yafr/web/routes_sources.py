@@ -7,6 +7,7 @@ SourceEmailEditScreen, and SourceParseEditScreen.
 
 from datetime import datetime, timedelta, timezone
 import math
+from typing import Any, Optional
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from sqlalchemy import func, select
 from linkarchivetools.model.definitions import (
@@ -21,6 +22,7 @@ from yafr.db import ConfigRepository, SourceRepository, get_session
 from yafr.search import SOURCE_FILTERS, SearchParser, SourceSearchQueryBuilder
 
 sources_bp = Blueprint("sources", __name__)
+default_source_refresh = 3600
 
 
 @sources_bp.route("/sources")
@@ -122,6 +124,24 @@ def sources_list():
     )
 
 
+def _parse_fetch_period(raw_value: Any) -> Optional[int]:
+    """
+    Parses fetch_period input from request form data.
+
+    Returns positive integer seconds, or None if omitted, empty, or non-positive.
+    """
+    if raw_value is None:
+        return None
+    val_str = str(raw_value).strip()
+    if not val_str:
+        return None
+    try:
+        val = int(val_str)
+        return val if val > 0 else None
+    except (ValueError, TypeError):
+        return None
+
+
 @sources_bp.route("/sources/<int:id>")
 def source_detail(id: int):
     """
@@ -180,9 +200,14 @@ def source_detail(id: int):
             if df:
                 if df.tzinfo is not None:
                     df = df.astimezone(timezone.utc).replace(tzinfo=None)
+                fetch_seconds = (
+                    source.fetch_period
+                    if (source.fetch_period and source.fetch_period > 0)
+                    else default_source_refresh
+                )
                 cutoff_naive = datetime.now(timezone.utc).replace(
                     tzinfo=None
-                ) - timedelta(seconds=3600)
+                ) - timedelta(seconds=fetch_seconds)
                 is_outdated = df < cutoff_naive
             else:
                 is_outdated = True
@@ -197,6 +222,7 @@ def source_detail(id: int):
         page_hash_hex=page_hash_hex,
         body_hash_hex=body_hash_hex,
         is_outdated=is_outdated,
+        fetch_period=source.fetch_period,
     )
 
 
@@ -215,6 +241,7 @@ def source_add_rss():
         auto_tag = request.form.get("auto_tag", "").strip()
         favicon = request.form.get("favicon", "").strip() or None
         category_name = request.form.get("category_name", "").strip() or None
+        fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url:
             flash("Feed URL is required.", "danger")
@@ -233,6 +260,7 @@ def source_add_rss():
             auto_tag=auto_tag,
             favicon=favicon,
             category_name=category_name,
+            fetch_period=fetch_period,
         )
         flash(f"RSS source '{new_source.title}' created successfully.", "success")
         return redirect(url_for("sources.source_detail", id=new_source.id))
@@ -258,6 +286,7 @@ def source_edit_rss(id: int):
         auto_tag = request.form.get("auto_tag", "").strip()
         favicon = request.form.get("favicon", "").strip() or None
         category_name = request.form.get("category_name", "").strip() or None
+        fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         source_repo.update_source(
             id,
@@ -267,6 +296,7 @@ def source_edit_rss(id: int):
             auto_tag=auto_tag,
             favicon=favicon,
             category_name=category_name,
+            fetch_period=fetch_period,
         )
         flash(f"Source '{title}' updated successfully.", "success")
         return redirect(url_for("sources.source_detail", id=id))
@@ -290,6 +320,7 @@ def source_add_email():
         password = request.form.get("password", "")
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url or not username:
             flash("Server URL and username are required.", "danger")
@@ -329,6 +360,7 @@ def source_add_email():
             enabled=enabled,
             auto_tag=auto_tag,
             credentials_id=creds.id,
+            fetch_period=fetch_period,
         )
         flash(f"Email source '{new_source.title}' configured successfully.", "success")
         return redirect(url_for("sources.source_detail", id=new_source.id))
@@ -362,6 +394,7 @@ def source_edit_email(id: int):
         password = request.form.get("password", "")
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if credentials:
             credentials.name = title
@@ -402,6 +435,7 @@ def source_edit_email(id: int):
             enabled=enabled,
             auto_tag=auto_tag,
             credentials_id=credentials.id,
+            fetch_period=fetch_period,
         )
         flash(f"Email source '{title}' updated successfully.", "success")
         return redirect(url_for("sources.source_detail", id=id))
@@ -425,6 +459,7 @@ def source_add_parse():
         xpath = request.form.get("xpath", "").strip()
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         if not url:
             flash("Web page URL is required.", "danger")
@@ -437,6 +472,7 @@ def source_add_parse():
             xpath=xpath,
             enabled=enabled,
             auto_tag=auto_tag,
+            fetch_period=fetch_period,
         )
         flash(f"Parse source '{new_source.title}' configured successfully.", "success")
         return redirect(url_for("sources.source_detail", id=new_source.id))
@@ -461,6 +497,7 @@ def source_edit_parse(id: int):
         xpath = request.form.get("xpath", "").strip()
         enabled = "enabled" in request.form
         auto_tag = request.form.get("auto_tag", "").strip()
+        fetch_period = _parse_fetch_period(request.form.get("fetch_period"))
 
         source_repo.update_source(
             id,
@@ -469,6 +506,7 @@ def source_edit_parse(id: int):
             xpath=xpath,
             enabled=enabled,
             auto_tag=auto_tag,
+            fetch_period=fetch_period,
         )
         flash(f"Parse source '{title}' updated successfully.", "success")
         return redirect(url_for("sources.source_detail", id=id))
