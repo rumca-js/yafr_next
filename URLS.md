@@ -119,6 +119,19 @@ Following the project requirement to **"prefer having small server functions tha
   ```
 - **Offline Capable**: No (requires internet). Disabled if offline.
 
+#### `POST /api/entries/<int:id>/update-social`
+- **Purpose**: Enqueues background social metadata and engagement stats download (`link-download-social`) for the entry.
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "entry_id": 42,
+    "job_id": 106,
+    "message": "Social data download queued."
+  }
+  ```
+- **Offline Capable**: No (requires internet). Disabled if offline.
+
 #### `POST /api/entries/<int:id>/reset-data`
 - **Purpose**: Resets extracted metadata (hashes, description, thumbnails) back to raw state.
 - **Response**:

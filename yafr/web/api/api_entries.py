@@ -219,6 +219,33 @@ def update_data(entry_id: int):
     )
 
 
+@api_entries_bp.route("/<int:entry_id>/update-social", methods=["POST"])
+@api_entries_bp.route("/<int:entry_id>/download-social", methods=["POST"])
+def update_social_data(entry_id: int):
+    """
+    Enqueues a social data download job (JOB_LINK_DOWNLOAD_SOCIAL) for the entry.
+    """
+    session = get_session()
+    entry_repo = EntryRepository(session)
+    entry = entry_repo.get_by_id(entry_id)
+    if not entry:
+        return api_response(success=False, error="Entry not found", status_code=404)
+
+    from yafr.workers.jobs.link_jobs import JOB_LINK_DOWNLOAD_SOCIAL
+    from yafr.services.job_service import JobService
+
+    job = JobService.create_job(
+        job=JOB_LINK_DOWNLOAD_SOCIAL,
+        subject=str(entry_id),
+        session=session,
+    )
+    return api_response(
+        success=True,
+        data={"entry_id": entry_id, "job_id": job.id},
+        message="Social data download queued.",
+    )
+
+
 @api_entries_bp.route("/<int:entry_id>/reset-data", methods=["POST"])
 def reset_data(entry_id: int):
     """

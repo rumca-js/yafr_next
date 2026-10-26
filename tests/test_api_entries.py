@@ -164,6 +164,22 @@ class TestApiEntries(unittest.TestCase):
         self.assertEqual(data["entry_id"], self.entry.id)
         self.assertIn("job_id", data)
 
+    def test_api_update_social_enqueues_job(self):
+        """POST /api/entries/<id>/update-social enqueues background link-download-social job."""
+        res = self.client.post(f"/api/entries/{self.entry.id}/update-social")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()["data"]
+        self.assertEqual(data["entry_id"], self.entry.id)
+        self.assertIn("job_id", data)
+
+        from linkarchivetools.model.definitions import BackgroundJob
+        from yafr.workers.jobs.link_jobs import JOB_LINK_DOWNLOAD_SOCIAL
+
+        job = self.session.get(BackgroundJob, data["job_id"])
+        self.assertIsNotNone(job)
+        self.assertEqual(job.job, JOB_LINK_DOWNLOAD_SOCIAL)
+        self.assertEqual(job.subject, str(self.entry.id))
+
     def test_api_reset_data(self):
         """POST /api/entries/<id>/reset-data clears hashes and status code."""
         self.entry.contents_hash = b"fake-hash"

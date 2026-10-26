@@ -15,9 +15,40 @@ from yafr.db.session import get_session
 logger = logging.getLogger(__name__)
 
 # Standard Background Job Types
-JOB_LINK_UPDATE_DATA = "link-update-data"
 JOB_PROCESS_SOURCE = "process-source"
+JOB_LINK_ADD = "link-add"
+JOB_LINK_SAVE = "link-save"
+JOB_LINK_UPDATE_DATA = "link-update-data"
+JOB_LINK_RESET_DATA = "link-reset-data"
+JOB_LINK_RESET_LOCAL_DATA = "link-reset-local-data"
+JOB_LINK_DOWNLOAD_SOCIAL = "link-social-data"
+JOB_LINK_DOWNLOAD = "link-download"
+JOB_LINK_DOWNLOAD_MUSIC = "download-music"
+JOB_LINK_DOWNLOAD_VIDEO = "download-video"
+JOB_DOWNLOAD_FILE = "download-file"  # TODO stor file, should mention DB
+JOB_LINK_SCAN = "link-scan"
+JOB_SOURCE_ADD = "source-add"
+JOB_MOVE_TO_ARCHIVE = "move-to-archive"
+JOB_WRITE_DAILY_DATA = "write-daily-data"
+JOB_WRITE_YEAR_DATA = "write-year-data"
+JOB_WRITE_NOTIME_DATA = "write-notime-data"
+JOB_WRITE_TOPIC_DATA = "write-topic-data"
+JOB_IMPORT_DAILY_DATA = "import-daily-data"
+JOB_IMPORT_BOOKMARKS = "import-bookmarks"
+JOB_IMPORT_SOURCES = "import-sources"
+JOB_IMPORT_INSTANCE = "import-instance"
+JOB_IMPORT_FROM_FILES = "import-from-files"
+JOB_EXPORT_DATA = "export-data"
 JOB_CLEANUP = "cleanup"
+JOB_TRUNCATE_TABLE = "truncate-table"
+JOB_REMOVE = "remove"
+JOB_CHECK_DOMAINS = "check-domains"
+JOB_RUN_RULE = "run-rule"
+JOB_INITIALIZE = "initialize"
+JOB_INITIALIZE_BLOCK_LIST = (
+    "initialize-block-list"  # initializes one specific block list
+)
+JOB_REFRESH = "refresh"
 
 
 class JobService:

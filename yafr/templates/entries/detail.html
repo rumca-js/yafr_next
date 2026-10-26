@@ -240,6 +240,16 @@
           <i class="bi bi-arrow-clockwise me-1"></i>Update Data
         </button>
 
+        <!-- Update Social Data -->
+        <button 
+          type="button" 
+          class="btn btn-sm btn-outline-info rounded-pill px-3 btn-update-social" 
+          data-id="{{ entry.id }}"
+          title="Enqueue background download of social data and metrics"
+        >
+          <i class="bi bi-share me-1"></i>Update social data
+        </button>
+
         <!-- Reset Link Data -->
         <button 
           type="button" 
@@ -850,6 +860,29 @@
         },
         error: function(xhr) {
           showToast('Failed to queue update: ' + (xhr.responseJSON?.error || xhr.statusText), false);
+        },
+        complete: function() {
+          btn.prop('disabled', false);
+        }
+      });
+    });
+
+    // 4b. Update Social Data
+    $('.btn-update-social').on('click', function() {
+      const btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        url: '/api/entries/' + entryId + '/update-social',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(res) {
+          if (res.success) {
+            showToast(res.message || 'Social data download job queued.');
+          }
+        },
+        error: function(xhr) {
+          showToast('Failed to queue social update: ' + (xhr.responseJSON?.error || xhr.statusText), false);
         },
         complete: function() {
           btn.prop('disabled', false);
