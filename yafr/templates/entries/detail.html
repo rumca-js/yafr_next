@@ -98,7 +98,7 @@
     <div class="card-body p-4">
       
       <!-- Title -->
-      <h1 class="h3 fw-bold mb-3">
+      <h1 class="h3 fw-bold mb-0">
         <a 
           href="{{ entry.link }}" 
           target="_blank" 
@@ -107,14 +107,12 @@
           title="{{ entry.title or entry.link }}"
         >
           {{ entry.title or entry.link }}
-          <i class="bi bi-box-arrow-up-right ms-2 fs-6 text-muted align-middle"></i>
         </a>
       </h1>
 
       <!-- Link URL and Quick Actions -->
-      <div class="d-flex flex-wrap align-items-center gap-1 mb-4 p-1 bg-body-tertiary rounded border">
-        <i class="bi bi-link-45deg fs-4 text-primary ms-1"></i>
-        <a 
+      <div class="d-flex flex-wrap align-items-center gap-1 mb-4 p-0">
+        <a
           href="{{ entry.link }}" 
           target="_blank" 
           rel="noopener noreferrer" 
