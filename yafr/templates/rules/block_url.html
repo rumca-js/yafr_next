@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ app_name }} - Block URL{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+
+      <!-- Breadcrumb / Back Link -->
+      <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item"><a href="{{ url_for('rules.rules_list') }}">Rules</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Block URL</li>
+        </ol>
+      </nav>
+
+      <!-- Main Card -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 border-bottom">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-slash-circle text-danger fs-5"></i>
+            <h5 class="mb-0 fw-semibold">Block URL / Domain</h5>
+          </div>
+        </div>
+
+        <div class="card-body p-4">
+          <p class="text-secondary small mb-4">
+            Add a domain, URL, or substring pattern to the block list. If this pattern matches any part of an entry link or source URL, the entry will not be built and matching sources will be removed.
+          </p>
+
+          <form method="POST" action="{{ action_url }}">
+            <div class="mb-3">
+              <label for="url" class="form-label fw-semibold small">URL or Pattern to Block <span class="text-danger">*</span></label>
+              <input type="text"
+                     class="form-control"
+                     id="url"
+                     name="url"
+                     placeholder="e.g. tracker.com, ads.example.org, or &ad_token="
+                     required
+                     maxlength="1000"
+                     autofocus>
+              <div class="form-text small">
+                Matches any part of candidate URLs (case-insensitive substring match).
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+              <a href="{{ url_for('rules.rules_list') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-arrow-left me-1"></i>Cancel
+              </a>
+              <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4">
+                <i class="bi bi-slash-circle me-1"></i>Block URL
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

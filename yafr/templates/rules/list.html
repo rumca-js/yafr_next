@@ -17,7 +17,14 @@
         </div>
 
         <div class="d-flex align-items-center gap-2 flex-wrap">
-          <a href="{{ url_for('rules.rule_add') }}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+          <button type="button"
+                  class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm"
+                  data-bs-toggle="modal"
+                  data-bs-target="#blockUrlModal"
+                  id="btn-block-url">
+            <i class="bi bi-slash-circle me-1"></i>Block Url
+          </button>
+          <a href="{{ url_for('rules.rule_add') }}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm" id="btn-add-rule">
             <i class="bi bi-plus-lg me-1"></i>Add Rule
           </a>
         </div>
@@ -173,6 +180,59 @@
 
       {% endif %}
 
+      <!-- Block Entries Section -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-slash-circle text-danger fs-5"></i>
+            <h5 class="mb-0 fw-semibold">Blocked URLs &amp; Patterns</h5>
+            <span class="badge bg-danger-subtle text-danger-emphasis border ms-1">{{ block_entries|length if block_entries else 0 }}</span>
+          </div>
+          <button type="button"
+                  class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                  data-bs-toggle="modal"
+                  data-bs-target="#blockUrlModal">
+            <i class="bi bi-plus-lg me-1"></i>Block Url
+          </button>
+        </div>
+        {% if not block_entries %}
+          <div class="card-body text-center py-4 text-muted">
+            <p class="mb-0 small text-secondary">
+              No blocked URLs configured. Click <strong>Block Url</strong> to add individual domain or URL patterns to block.
+            </p>
+          </div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light small">
+                <tr>
+                  <th style="width: 80px;" class="text-center">#</th>
+                  <th>URL / Domain / Pattern</th>
+                  <th style="width: 140px;" class="text-center">Operations</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for b in block_entries %}
+                  <tr>
+                    <td class="text-center text-muted small">{{ b.id }}</td>
+                    <td>
+                      <code class="text-danger fw-semibold">{{ b.url }}</code>
+                    </td>
+                    <td class="text-center">
+                      <form method="POST" action="{{ url_for('rules.block_entry_delete', id=b.id) }}" class="d-inline" onsubmit="return confirm('Remove blocked URL \'{{ b.url }}\'?');">
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove blocked URL">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+
     </div>
   </div>
 
@@ -225,6 +285,47 @@
           </button>
         </form>
       </div>
+    </div>
+  </div>
+</div>
+<!-- Modal: Add Block URL -->
+<div class="modal fade" id="blockUrlModal" tabindex="-1" aria-labelledby="blockUrlModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <form method="POST" action="{{ url_for('rules.block_url_add') }}">
+        <div class="modal-header">
+          <h5 class="modal-title d-flex align-items-center gap-2 text-danger" id="blockUrlModalLabel">
+            <i class="bi bi-slash-circle"></i>
+            <span>Block URL / Domain</span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-secondary small mb-3">
+            Add a domain, URL, or substring pattern to block. If this pattern matches any part of an entry link or source URL, the entry will not be built and matching sources will be removed.
+          </p>
+          <div class="mb-3">
+            <label for="block_url_input" class="form-label fw-semibold small">URL or Pattern to Block <span class="text-danger">*</span></label>
+            <input type="text"
+                   class="form-control"
+                   id="block_url_input"
+                   name="url"
+                   placeholder="e.g. tracker.com, badsite.org, or &ad_token="
+                   required
+                   maxlength="1000"
+                   autofocus>
+            <div class="form-text small">
+              Matches any part of candidate URLs (case-insensitive substring match).
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4">
+            <i class="bi bi-slash-circle me-1"></i>Block URL
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

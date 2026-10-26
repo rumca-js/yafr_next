@@ -6,7 +6,7 @@ and deleting URL-based processing rules stored in the entryrules table.
 """
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from yafr.db import RulesRepository, get_session
+from yafr.db import BlockEntryRepository, RulesRepository, get_session
 
 rules_bp = Blueprint("rules", __name__)
 
@@ -14,14 +14,61 @@ rules_bp = Blueprint("rules", __name__)
 @rules_bp.route("/rules")
 def rules_list():
     """
-    Renders EntryRulesScreen — a full list of all configured entry rules.
+    Renders EntryRulesScreen — a full list of all configured entry rules and blocked URLs.
 
     Rules are displayed ordered by priority (ascending), then ID.
     """
     session = get_session()
     repo = RulesRepository(session)
     rules = repo.list_rules()
-    return render_template("rules/list.html", rules=rules)
+    block_repo = BlockEntryRepository(session)
+    block_entries = block_repo.list_entries(order_by="id", limit=500)
+    return render_template(
+        "rules/list.html",
+        rules=rules,
+        block_entries=block_entries,
+    )
+
+
+@rules_bp.route("/rules/block-url", methods=["GET", "POST"])
+def block_url_add():
+    """
+    Adds a single BlockEntry record (GET renders standalone form, POST persists).
+    """
+    if request.method == "POST":
+        raw_url = request.form.get("url", "").strip()
+        if not raw_url:
+            flash("URL or pattern cannot be empty.", "warning")
+            return redirect(url_for("rules.rules_list"))
+
+        session = get_session()
+        block_repo = BlockEntryRepository(session)
+        try:
+            entry = block_repo.add_entry(url=raw_url)
+            flash(f"Blocked URL '{entry.url}' added successfully.", "success")
+        except Exception as exc:
+            flash(f"Failed to add block entry: {exc}", "danger")
+        return redirect(url_for("rules.rules_list"))
+
+    return render_template(
+        "rules/block_url.html",
+        action_url=url_for("rules.block_url_add"),
+    )
+
+
+@rules_bp.route("/rules/block-entry/<int:id>/delete", methods=["POST"])
+def block_entry_delete(id: int):
+    """
+    Deletes a single BlockEntry by primary key ID and redirects back to EntryRulesScreen.
+    """
+    session = get_session()
+    block_repo = BlockEntryRepository(session)
+    deleted = block_repo.delete_entry(id)
+    if deleted:
+        flash("Blocked URL removed.", "success")
+    else:
+        flash("Block entry not found.", "warning")
+    return redirect(url_for("rules.rules_list"))
 
 
 @rules_bp.route("/rules/add", methods=["GET", "POST"])
