@@ -672,8 +672,9 @@
           id="tags-input-modal" 
           value="{{ tags | join(', ') }}" 
           placeholder="e.g. python, programming, news"
+          autofocus
         >
-        <div class="form-text small">Tags are stored in lowercase without leading hash symbols.</div>
+        <div class="form-text small">Tags are stored in lowercase without leading hash symbols. Press Enter to save and close.</div>
       </div>
       <div class="modal-footer border-top-0">
         <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
@@ -884,7 +885,18 @@
       });
     });
 
-    // 7. Save Tags via Modal
+    // 7. Save Tags via Modal & Autofocus / Enter-to-apply
+    $('#editTagsModal').on('shown.bs.modal', function () {
+      $('#tags-input-modal').trigger('focus').select();
+    });
+
+    $('#tags-input-modal').on('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('#save-tags-modal-btn').trigger('click');
+      }
+    });
+
     $('#save-tags-modal-btn').on('click', function() {
       const rawTags = $('#tags-input-modal').val();
       const tagsList = rawTags.split(',').map(t => t.trim().replace(/^#/, '')).filter(t => t.length > 0);
@@ -912,6 +924,17 @@
             } else {
               container.html('<span class="text-muted small fst-italic" id="no-tags-placeholder">No tags assigned. Click "Edit Tags" to add tags.</span>');
             }
+
+            const editBtn = $('<button>')
+              .attr('type', 'button')
+              .attr('title', 'Edit tags for this entry')
+              .attr('data-bs-toggle', 'modal')
+              .attr('data-bs-target', '#editTagsModal')
+              .addClass('btn btn-sm btn-outline-secondary rounded-pill px-2 py-0 btn-edit-tags')
+              .html('<i class="bi bi-pencil"></i>');
+            container.append(editBtn);
+
+            $('#tags-input-modal').val(updatedTags.join(', '));
             $('#editTagsModal').modal('hide');
             showToast('Tags updated successfully.');
           }
