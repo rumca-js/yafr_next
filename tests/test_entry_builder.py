@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 from linkarchivetools.model.definitions import (
+    BlockEntry,
     ConfigurationEntry,
     EntryCompactedTags,
     EntryRules,
@@ -17,6 +18,7 @@ from linkarchivetools.model.definitions import (
 )
 from yafr.app import create_app
 from yafr.db import (
+    BlockEntryRepository,
     ConfigRepository,
     EntryRepository,
     RulesRepository,
@@ -48,6 +50,7 @@ class TestEntryBuilder(unittest.TestCase):
         self.source_repo = SourceRepository(self.session)
         self.rules_repo = RulesRepository(self.session)
         self.entry_repo = EntryRepository(self.session)
+        self.block_repo = BlockEntryRepository(self.session)
 
         # Get active default configuration
         self.config = self.config_repo.get_config()
@@ -358,6 +361,82 @@ class TestEntryBuilder(unittest.TestCase):
                 )
                 self.assertIn("automated", tags)
                 self.assertIn("testing", tags)
+
+    def test_block_entry_matching_domain_rejects_link(self):
+        """BlockEntry matching candidate URL domain prevents building."""
+        self.block_repo.add_entry("adserver.net")
+
+        builder = EntryBuilder(session=self.session)
+        allowed, reason = builder.can_build("https://adserver.net/banner.js")
+        self.assertFalse(allowed)
+        self.assertIn("blocked by block entry 'adserver.net'", reason)
+        self.assertEqual(builder.last_rejection_reason, reason)
+
+    def test_block_entry_matching_substring_and_query_param(self):
+        """BlockEntry matching substring or query parameter prevents building."""
+        self.block_repo.add_entry("&track_click=1")
+
+        builder = EntryBuilder(session=self.session)
+        allowed, reason = builder.can_build("https://example.com/item?foo=bar&track_click=1")
+        self.assertFalse(allowed)
+        self.assertIn("blocked by block entry '&track_click=1'", reason)
+
+    def test_block_entry_case_insensitive_matching(self):
+        """BlockEntry matches regardless of case difference in candidate or pattern."""
+        self.block_repo.add_entry("TRACKER-DOMAIN.COM")
+
+        builder = EntryBuilder(session=self.session)
+        allowed, reason = builder.can_build("https://tracker-domain.com/feed")
+        self.assertFalse(allowed)
+        self.assertIn("blocked by block entry", reason)
+
+        # Candidate with uppercase
+        allowed2, reason2 = builder.can_build("https://SUB.Tracker-Domain.com/page")
+        self.assertFalse(allowed2)
+        self.assertIn("blocked by block entry", reason2)
+
+    def test_block_entry_prevents_build_and_save(self):
+        """build_entry and build_and_save return None and do not persist blocked links."""
+        self.block_repo.add_entry("malicious-site.org")
+
+        builder = EntryBuilder(session=self.session)
+        # build_entry
+        entry, tags = builder.build_entry("https://malicious-site.org/payload")
+        self.assertIsNone(entry)
+        self.assertEqual(tags, [])
+
+        # build_and_save
+        saved = builder.build_and_save("https://malicious-site.org/payload", commit=True)
+        self.assertIsNone(saved)
+
+        # Verify not in DB
+        existing = (
+            self.session.execute(
+                select(LinkDataModel).where(LinkDataModel.link == "https://malicious-site.org/payload")
+            )
+            .scalars()
+            .first()
+        )
+        self.assertIsNone(existing)
+
+    def test_clean_url_allowed_when_block_entries_exist(self):
+        """URLs that do not match any BlockEntry.url are built normally."""
+        self.block_repo.add_entry("malicious.org")
+        self.block_repo.add_entry("adserver.com")
+
+        builder = EntryBuilder(session=self.session)
+        allowed, reason = builder.can_build("https://good-domain.org/article")
+        self.assertTrue(allowed)
+        self.assertIsNone(reason)
+
+    def test_block_entry_blocks_even_with_ignore_policy(self):
+        """BlockEntry blocking is enforced even when ignore_policy=True."""
+        self.block_repo.add_entry("bad-site.org")
+
+        builder = EntryBuilder(session=self.session)
+        allowed, reason = builder.can_build("https://bad-site.org/page", ignore_policy=True)
+        self.assertFalse(allowed)
+        self.assertIn("blocked by block entry", reason)
 
 
 if __name__ == "__main__":

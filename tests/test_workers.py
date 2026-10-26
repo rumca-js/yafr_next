@@ -20,10 +20,12 @@ from linkarchivetools.model.definitions import (
 )
 from yafr.app import create_app
 from yafr.db import (
+    BlockEntryRepository,
     ConfigRepository,
     EntryRepository,
     HistoryRepository,
     JobRepository,
+    RulesRepository,
     SourceRepository,
     close_session,
     get_session,
@@ -51,6 +53,8 @@ class TestJobExecutor(unittest.TestCase):
         self.entry_repo = EntryRepository(self.session)
         self.history_repo = HistoryRepository(self.session)
         self.config_repo = ConfigRepository(self.session)
+        self.rules_repo = RulesRepository(self.session)
+        self.block_repo = BlockEntryRepository(self.session)
 
     def tearDown(self):
         close_session()
@@ -173,6 +177,86 @@ class TestJobExecutor(unittest.TestCase):
         # Worker handled the dead link
         updated_entry = self.entry_repo.get_by_id(entry_id)
         self.assertIsNotNone(updated_entry.date_dead_since)
+
+    def test_process_link_update_data_job_deletes_when_blocked_by_entry_rule(self):
+        """When link-update-data runs on an entry matching a blocking EntryRule, entry is deleted."""
+        entry = self.entry_repo.add_entry(
+            link="https://spammy-site.com/offer",
+            title="Spam Offer",
+        )
+        entry_id = entry.id
+
+        # Add EntryRule with block=True matching this domain
+        self.rules_repo.add_rule(
+            rule_name="Block Spammy",
+            trigger_rule_url=r".*spammy-site\.com.*",
+            block=True,
+            priority=1,
+            enabled=True,
+        )
+
+        job = self.job_repo.enqueue_job(
+            job="link-update-data",
+            subject=str(entry_id),
+            priority=1,
+            enabled=True,
+        )
+
+        executor = JobExecutor(session=self.session, auto_refresh_sources=False)
+
+        with patch("yafr.workers.jobs.link_jobs.WebToolsWrapper") as mock_webtools_cls:
+            mock_client = MagicMock()
+            mock_client.get_title.return_value = "Spam Offer"
+            mock_client.get_description.return_value = "Buy now"
+            mock_client.get_response.return_value = MagicMock(is_valid=lambda: True)
+            mock_client.is_valid.return_value = True
+            mock_client.get_status_code.return_value = 200
+            mock_webtools_cls.return_value = mock_client
+
+            result = executor.process_one(session=self.session)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result["success"])
+
+        # Entry should have been deleted from DB
+        self.assertIsNone(self.entry_repo.get_by_id(entry_id))
+
+    def test_process_link_update_data_job_deletes_when_blocked_by_block_entry(self):
+        """When link-update-data runs on an entry matching a BlockEntry pattern, entry is deleted."""
+        entry = self.entry_repo.add_entry(
+            link="https://tracker.badware.org/download/payload.exe",
+            title="Download Payload",
+        )
+        entry_id = entry.id
+
+        # Add BlockEntry whose url matches part of the entry link
+        self.block_repo.add_entry("badware.org")
+
+        job = self.job_repo.enqueue_job(
+            job="link-update-data",
+            subject=str(entry_id),
+            priority=1,
+            enabled=True,
+        )
+
+        executor = JobExecutor(session=self.session, auto_refresh_sources=False)
+
+        with patch("yafr.workers.jobs.link_jobs.WebToolsWrapper") as mock_webtools_cls:
+            mock_client = MagicMock()
+            mock_client.get_title.return_value = "Download Payload"
+            mock_client.get_description.return_value = "Malware"
+            mock_client.get_response.return_value = MagicMock(is_valid=lambda: True)
+            mock_client.is_valid.return_value = True
+            mock_client.get_status_code.return_value = 200
+            mock_webtools_cls.return_value = mock_client
+
+            result = executor.process_one(session=self.session)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result["success"])
+
+        # Entry should have been deleted from DB
+        self.assertIsNone(self.entry_repo.get_by_id(entry_id))
 
     def test_process_link_download_social_job(self):
         """JobExecutor processes link-download-social task and stores data in socialdata table."""

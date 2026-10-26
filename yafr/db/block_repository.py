@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 from typing import Any, Iterable, List, Optional, Sequence, Set, TextIO, Union
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 from linkarchivetools.model.definitions import BlockEntry, BlockEntryList
@@ -332,14 +332,75 @@ class BlockEntryRepository(BaseRepository[BlockEntry]):
         stmt = select(BlockEntry).where(BlockEntry.url == url.strip()).limit(1)
         return self.session.execute(stmt).scalar_one_or_none()
 
+    def get_matching_entry(
+        self,
+        url: str,
+        raw_url: Optional[str] = None,
+    ) -> Optional[BlockEntry]:
+        """
+        Retrieves the first BlockEntry whose url matches any part of the given URL.
+
+        Performs a case-insensitive substring search: if any BlockEntry.url matches
+        any part of url (or raw_url), returns the matching BlockEntry.
+
+        :param url: Candidate URL string
+        :param raw_url: Optional raw URL string before sanitization
+        :return: Matching BlockEntry instance or None
+        """
+        cleaned = (url or "").strip()
+        raw = (raw_url or "").strip()
+        if not cleaned and not raw:
+            return None
+
+        cleaned_lower = cleaned.lower()
+        raw_lower = raw.lower()
+
+        conditions = []
+        if cleaned_lower:
+            conditions.append(
+                func.instr(cleaned_lower, func.lower(BlockEntry.url)) > 0
+            )
+        if raw_lower and raw_lower != cleaned_lower:
+            conditions.append(
+                func.instr(raw_lower, func.lower(BlockEntry.url)) > 0
+            )
+
+        if not conditions:
+            return None
+
+        stmt = (
+            select(BlockEntry)
+            .where(
+                func.length(func.trim(BlockEntry.url)) > 0,
+                or_(*conditions) if len(conditions) > 1 else conditions[0],
+            )
+            .limit(1)
+        )
+
+        try:
+            return self.session.execute(stmt).scalar_one_or_none()
+        except Exception as err:
+            logger.debug("Database instr query failed (%s); falling back to iteration", err)
+            stmt_all = select(BlockEntry).where(func.length(func.trim(BlockEntry.url)) > 0)
+            entries = self.session.execute(stmt_all).scalars().all()
+            for entry in entries:
+                pattern = (entry.url or "").strip().lower()
+                if not pattern:
+                    continue
+                if (cleaned_lower and pattern in cleaned_lower) or (
+                    raw_lower and pattern in raw_lower
+                ):
+                    return entry
+            return None
+
     def is_blocked(self, url: str) -> bool:
         """
-        Checks whether a URL is present in the block entries table.
+        Checks whether a URL is blocked (either exact match or if any BlockEntry.url matches any part of url).
 
         :param url: URL to check
         :return: True if blocked, False otherwise
         """
-        return self.get_entry_by_url(url) is not None
+        return self.get_matching_entry(url) is not None
 
     def add_entry(self, url: str, block_list_id: Optional[int] = None) -> BlockEntry:
         """
@@ -545,6 +606,11 @@ class BlockRepository(BaseRepository[BlockEntryList]):
 
     def get_entry_by_url(self, url: str) -> Optional[BlockEntry]:
         return self.entry_repo.get_entry_by_url(url)
+
+    def get_matching_entry(
+        self, url: str, raw_url: Optional[str] = None
+    ) -> Optional[BlockEntry]:
+        return self.entry_repo.get_matching_entry(url, raw_url=raw_url)
 
     def is_blocked(self, url: str) -> bool:
         return self.entry_repo.is_blocked(url)

@@ -16,12 +16,14 @@ from sqlalchemy.orm import Session
 import webtoolkit
 
 from linkarchivetools.model.definitions import (
+    BlockEntry,
     ConfigurationEntry,
     EntryCompactedTags,
     EntryRules,
     LinkDataModel,
     SourcesTable,
 )
+from yafr.db.block_repository import BlockEntryRepository
 from yafr.db.config_repository import ConfigRepository
 from yafr.db.rules_repository import RulesRepository
 from yafr.db.session import get_session
@@ -43,8 +45,9 @@ class EntryBuilder:
       2. Configuration policy verification (domain-only, IP addresses, Onion/Tor,
          dead links, non-domain links).
       3. EntryRules regex evaluation (blocking, trusting, auto-tagging, age restrictions).
-      4. Source property inheritance (language, age, auto-tags, favicon fallback).
-      5. De-duplication check against existing LinkDataModel rows.
+      4. BlockEntry evaluation (blocking candidate URLs matching any BlockEntry pattern).
+      5. Source property inheritance (language, age, auto-tags, favicon fallback).
+      6. De-duplication check against existing LinkDataModel rows.
     """
 
     def __init__(
@@ -224,6 +227,25 @@ class EntryBuilder:
 
         return matching
 
+    def _get_matching_block_entry(
+        self,
+        cleaned_url: str,
+        raw_url: Optional[str] = None,
+    ) -> Optional[BlockEntry]:
+        """
+        Queries BlockEntry table to check whether any BlockEntry.url matches any part of the candidate link.
+
+        :param cleaned_url: Sanitized candidate URL
+        :param raw_url: Optional raw candidate URL prior to sanitization
+        :return: Matching BlockEntry instance or None
+        """
+        try:
+            block_repo = BlockEntryRepository(self.session)
+            return block_repo.get_matching_entry(cleaned_url, raw_url=raw_url)
+        except Exception as err:
+            logger.warning("Error querying block entries: %s", err)
+            return None
+
     def can_build(
         self,
         url: str,
@@ -231,16 +253,21 @@ class EntryBuilder:
         status_code: int = 200,
         check_duplicates: bool = True,
         ignore_policy: bool = False,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Evaluates whether a candidate URL is permissible according to URL validity,
-        ConfigurationEntry acceptance policies, EntryRules regex matching, and de-duplication.
+        ConfigurationEntry acceptance policies, EntryRules regex matching,
+        BlockEntry substring matching, and de-duplication.
 
         :param url: Candidate URL string
         :param source: Optional originating SourcesTable source
         :param status_code: HTTP response status code for dead link evaluation
         :param check_duplicates: If True, rejects URLs already existing in database
         :param ignore_policy: If True, bypasses ConfigurationEntry accept_* flags (for explicit overrides)
+        :param title: Optional candidate title for text-based rule triggers
+        :param description: Optional candidate description for text-based rule triggers
         :return: Tuple of (allowed: bool, rejection_reason: Optional[str])
         """
         raw = (url or "").strip()
@@ -320,14 +347,23 @@ class EntryBuilder:
                 return False, reason
 
         # 3. EntryRules Evaluation (Blocking regex)
-        matching_rules = self._get_matching_rules(cleaned_url, source=source)
+        matching_rules = self._get_matching_rules(
+            cleaned_url, source=source, title=title, description=description
+        )
         for rule in matching_rules:
             if rule.block:
                 reason = f"URL blocked by entry rule '{rule.rule_name}'."
                 self.last_rejection_reason = reason
                 return False, reason
 
-        # 4. De-duplication Check
+        # 4. BlockEntry Evaluation (Blocked URLs, domains, and substrings)
+        matching_block = self._get_matching_block_entry(cleaned_url, raw_url=raw)
+        if matching_block:
+            reason = f"URL blocked by block entry '{matching_block.url}'."
+            self.last_rejection_reason = reason
+            return False, reason
+
+        # 5. De-duplication Check
         if check_duplicates and self.is_duplicate(cleaned_url):
             reason = f"Duplicate entry: URL '{cleaned_url}' already exists."
             self.last_rejection_reason = reason
@@ -335,6 +371,42 @@ class EntryBuilder:
 
         self.last_rejection_reason = None
         return True, None
+
+    def is_link_acceptable(
+        self,
+        url: str,
+        source: Optional[SourcesTable] = None,
+        status_code: int = 200,
+        check_duplicates: bool = True,
+        ignore_policy: bool = False,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Evaluates whether a candidate link is acceptable according to URL validity,
+        configuration policies, EntryRules regex matching, BlockEntry matching,
+        and de-duplication.
+
+        Alias and wrapper around can_build().
+
+        :param url: Candidate URL string
+        :param source: Optional parent source
+        :param status_code: HTTP response status code
+        :param check_duplicates: If True, rejects URLs already existing in database
+        :param ignore_policy: If True, bypasses ConfigurationEntry accept_* flags
+        :param title: Optional candidate title for text-based rule triggers
+        :param description: Optional candidate description for text-based rule triggers
+        :return: Tuple of (acceptable: bool, rejection_reason: Optional[str])
+        """
+        return self.can_build(
+            url=url,
+            source=source,
+            status_code=status_code,
+            check_duplicates=check_duplicates,
+            ignore_policy=ignore_policy,
+            title=title,
+            description=description,
+        )
 
     def build_entry(
         self,
@@ -381,6 +453,8 @@ class EntryBuilder:
             status_code=status_code,
             check_duplicates=check_duplicates,
             ignore_policy=ignore_policy,
+            title=title,
+            description=description,
         )
         if not allowed:
             logger.info("Entry candidate '%s' rejected: %s", link, reason)

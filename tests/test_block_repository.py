@@ -249,6 +249,26 @@ class TestBlockRepository(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repo.process_block_list(9999, content="bad.com")
 
+    def test_get_matching_entry_and_is_blocked_substring(self):
+        """Tests that get_matching_entry and is_blocked match substrings, domains, and paths."""
+        self.entry_repo.add_entry("tracker.io")
+        self.entry_repo.add_entry("ad_channel=")
+
+        # Substring match in full URL
+        matched = self.entry_repo.get_matching_entry("https://subdomain.tracker.io/analytics.js")
+        self.assertIsNotNone(matched)
+        self.assertEqual(matched.url, "tracker.io")
+
+        # Query param match
+        matched_param = self.entry_repo.get_matching_entry("https://example.com/page?ad_channel=top")
+        self.assertIsNotNone(matched_param)
+        self.assertEqual(matched_param.url, "ad_channel=")
+
+        # is_blocked
+        self.assertTrue(self.entry_repo.is_blocked("https://tracker.io/test"))
+        self.assertTrue(self.repo.is_blocked("https://tracker.io/test"))
+        self.assertFalse(self.entry_repo.is_blocked("https://safe-domain.org/index"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -157,30 +157,52 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
             if status_code is not None:
                 entry.status_code = status_code
 
-            # Check if link is acceptable using entry rules; if blocked, remove it
+            # Check if link is acceptable using EntryRules and BlockRules; if blocked, remove it
             try:
                 from yafr.services.entry_builder import EntryBuilder
+                from yafr.db.block_repository import BlockEntryRepository
 
                 builder = EntryBuilder(session=session)
-                acceptable, reason = builder.is_link_acceptable(
-                    entry.link, check_duplicates=False
+                acceptable, reason = builder.can_build(
+                    entry.link,
+                    status_code=entry.status_code or 200,
+                    check_duplicates=False,
+                    title=entry.title,
+                    description=entry.description,
                 )
                 if not acceptable:
                     logger.info(
-                        "Removing entry #%s (%s) because it is no longer acceptable: %s",
+                        "Removing entry #%s (%s) because it is blocked or no longer acceptable: %s",
                         entry.id,
                         entry.link,
                         reason,
                     )
-                    session.delete(entry)
-                    session.commit()
+                    entry_repo.delete_entry(entry.id)
+                    return {
+                        "success": True,
+                        "status": "removed",
+                        "message": f"Entry #{entry.id} removed: {reason}",
+                    }
+
+                # Also verify directly against BlockEntry repository (BlockRules)
+                block_repo = BlockEntryRepository(session=session)
+                matching_block = block_repo.get_matching_entry(entry.link)
+                if matching_block:
+                    reason = f"URL blocked by block entry '{matching_block.url}'."
+                    logger.info(
+                        "Removing entry #%s (%s) matching block entry: %s",
+                        entry.id,
+                        entry.link,
+                        reason,
+                    )
+                    entry_repo.delete_entry(entry.id)
                     return {
                         "success": True,
                         "status": "removed",
                         "message": f"Entry #{entry.id} removed: {reason}",
                     }
             except Exception as rule_err:
-                logger.debug("Entry rule evaluation skipped or failed: %s", rule_err)
+                logger.warning("Entry rule or block rule evaluation failed: %s", rule_err)
 
             # Enqueue JOB_LINK_DOWNLOAD_SOCIAL
             try:

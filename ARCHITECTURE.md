@@ -326,16 +326,19 @@ flowchart TD
     Sanitize["1. URL Sanitization\n(strip whitespace, trailing slashes, UrlLocation.get_clean())"]
     Policy["2. Configuration Policy Check\n(accept_domain_links, accept_ip_links, accept_onion_links, accept_dead_links)"]
     Rules["3. EntryRules Evaluation (Regex)\n(block, trust, auto_tag, apply_age_limit)"]
-    Inherit["4. Source Property Inheritance\n(language, age, auto_tag, source favicon fallback)"]
-    Dedup["5. De-duplication Check\n(linkdatamodel.link unique check)"]
-    Persist[("6. Atomic Persistence\n(linkdatamodel + entrycompactedtags)")]
+    BlockCheck["4. BlockEntry Evaluation\n(rejection if BlockEntry.url matches any part of entry link)"]
+    Inherit["5. Source Property Inheritance\n(language, age, auto_tag, source favicon fallback)"]
+    Dedup["6. De-duplication Check\n(linkdatamodel.link unique check)"]
+    Persist[("7. Atomic Persistence\n(linkdatamodel + entrycompactedtags)")]
     Drop["Discard / Log Blocked"]
 
     Raw --> Sanitize --> Policy
     Policy -->|Policy Reject| Drop
     Policy -->|Policy Accepted| Rules
     Rules -->|Rule Blocked| Drop
-    Rules -->|Rule Allowed| Inherit
+    Rules -->|Rule Allowed| BlockCheck
+    BlockCheck -->|BlockEntry Matched| Drop
+    BlockCheck -->|BlockEntry Passed| Inherit
     Inherit --> Dedup
     Dedup -->|Duplicate| Drop
     Dedup -->|New Entry| Persist
@@ -358,13 +361,15 @@ flowchart TD
      - **Trust**: Marks entry as active/trusted (`manual_status_code = 200`).
      - **Auto-tag**: Appends configured tags to the entry.
      - **Age limit**: Applies `apply_age_limit` if positive.
-4. **Source Attribute Inheritance**:
+4. **BlockEntry Evaluation (`BlockEntry`)**:
+   - Evaluates against the `blockentry` repository: if `BlockEntry.url` matches any part of the candidate link (domain, substring, or path), ingestion is aborted.
+5. **Source Attribute Inheritance**:
    - If an entry originates from a `SourcesTable` source:
      - Inherits `source.language` if entry language is undefined.
      - Inherits `source.age` if entry age is undefined.
      - Automatically attaches `source.auto_tag` to entry tags.
      - Falls back to `source.favicon` if entry thumbnail is missing.
-5. **De-duplication**:
+6. **De-duplication**:
    - Verifies whether canonical link already exists in `linkdatamodel` to guarantee idempotency across feed updates.
 
 #### 3.6.1 Interactive Link Addition UI & Propositions
@@ -375,7 +380,7 @@ Users can add links manually via the Quick Add modal accessible from the navbar 
   - Version without superfluous trailing slash.
   - Version with `www.` stripped.
   - Version upgraded to `https://`.
-- **Policy & Rule Feedback**: Real-time feedback if a link violates domain, IP, Tor onion, or dead link policies, with an option to override for manual additions. Alerts if a link is blocked by `EntryRules`.
+- **Policy & Rule Feedback**: Real-time feedback if a link violates domain, IP, Tor onion, or dead link policies, with an option to override for manual additions. Alerts if a link is blocked by `EntryRules` or `BlockEntry`.
 - **Batch Link Ingestion (`/api/entries/batch-add`)**: Textarea allowing pasting up to 200 URLs at once, sanitized and de-duplicated through `EntryBuilder`.
 - **Asynchronous Metadata Fetching (`JOB_LINK_UPDATE_DATA`)**: When links are added by the user (via Quick Add, Batch Ingestion, or New Entry screen), a `JOB_LINK_UPDATE_DATA = "link-update-data"` job is enqueued. The worker thread fetches `BaseUrl`/`RemoteUrl` metadata (title, description, date_published, author, thumbnail, etc.) via `WebToolsWrapper` to populate entry metadata directly without fallback to raw response or BeautifulSoup parsing.
 
