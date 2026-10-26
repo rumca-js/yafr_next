@@ -3,8 +3,10 @@ Unit and integration tests for EntryRules and BlockEntry web routes.
 """
 
 import unittest
+from unittest.mock import patch
 from yafr.app import create_app
 from yafr.db import (
+    BlockEntryListRepository,
     BlockEntryRepository,
     RulesRepository,
     close_session,
@@ -29,18 +31,107 @@ class TestRulesRoutes(unittest.TestCase):
         self.session = get_session()
         self.rules_repo = RulesRepository(self.session)
         self.block_repo = BlockEntryRepository(self.session)
+        self.list_repo = BlockEntryListRepository(self.session)
 
     def tearDown(self):
         close_session()
 
     def test_rules_list_contains_add_rule_and_block_url_buttons(self):
-        """GET /rules renders the page with both 'Add Rule' and 'Block Url' buttons."""
+        """GET /rules renders the page with 'Add Rule', 'Block Url', and 'Block Lists' buttons."""
         response = self.client.get("/rules")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("Add Rule", html)
         self.assertIn("Block Url", html)
+        self.assertIn("Block Lists", html)
         self.assertIn("blockUrlModal", html)
+
+    def test_get_block_lists_view_renders_lists_and_status(self):
+        """GET /rules/block-lists renders blockentrylists with processed and not processed badges."""
+        self.list_repo.add_list("https://example.com/processed.txt", processed=True)
+        self.list_repo.add_list("https://example.com/unprocessed.txt", processed=False)
+
+        response = self.client.get("/rules/block-lists")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Block Entry Lists", html)
+        self.assertIn("https://example.com/processed.txt", html)
+        self.assertIn("https://example.com/unprocessed.txt", html)
+        self.assertIn("Processed", html)
+        self.assertIn("Not Processed", html)
+        self.assertIn("selectAllCheckbox", html)
+        self.assertIn("list-row-checkbox", html)
+
+    def test_post_add_block_list(self):
+        """POST /rules/block-lists/add creates a BlockEntryList."""
+        response = self.client.post(
+            "/rules/block-lists/add",
+            data={"url": "https://easylist.to/easylist.txt", "process_now": ""},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("https://easylist.to/easylist.txt", html)
+
+        obj = self.list_repo.get_list_by_url("https://easylist.to/easylist.txt")
+        self.assertIsNotNone(obj)
+        self.assertFalse(obj.processed)
+
+    def test_post_delete_single_block_list(self):
+        """POST /rules/block-lists/<id>/delete removes a single list and its entries."""
+        l = self.list_repo.add_list("https://example.com/delete-me.txt")
+        self.block_repo.add_entry("bad-item.com", block_list_id=l.id)
+
+        response = self.client.post(
+            f"/rules/block-lists/{l.id}/delete",
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(self.list_repo.get_list(l.id))
+        self.assertEqual(self.block_repo.count_entries(block_list_id=l.id), 0)
+
+    def test_post_batch_delete_block_lists(self):
+        """POST /rules/block-lists/batch-delete removes all selected block lists."""
+        l1 = self.list_repo.add_list("https://example.com/batch1.txt")
+        l2 = self.list_repo.add_list("https://example.com/batch2.txt")
+        l3 = self.list_repo.add_list("https://example.com/batch3.txt")
+
+        response = self.client.post(
+            "/rules/block-lists/batch-delete",
+            data={"selected_ids": [str(l1.id), str(l2.id)]},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(self.list_repo.get_list(l1.id))
+        self.assertIsNone(self.list_repo.get_list(l2.id))
+        self.assertIsNotNone(self.list_repo.get_list(l3.id))
+
+    def test_post_batch_delete_empty_selection_warns(self):
+        """POST /rules/block-lists/batch-delete without selection flashes warning."""
+        response = self.client.post(
+            "/rules/block-lists/batch-delete",
+            data={},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("No block lists selected", html)
+
+    def test_post_process_block_list(self):
+        """POST /rules/block-lists/<id>/process splits and ingests entries."""
+        l = self.list_repo.add_list("https://example.com/list.txt")
+
+        with patch("yafr.db.block_repository.fetch_and_split_block_list_url") as mock_fetch:
+            mock_fetch.return_value = ["tracker1.com", "tracker2.com", "adnetwork.io"]
+            response = self.client.post(
+                f"/rules/block-lists/{l.id}/process",
+                follow_redirects=True,
+            )
+            self.assertEqual(response.status_code, 200)
+
+        updated = self.list_repo.get_list(l.id)
+        self.assertTrue(updated.processed)
+        self.assertEqual(self.block_repo.count_entries(block_list_id=l.id), 3)
 
     def test_post_block_url_creates_block_entry_and_redirects(self):
         """POST /rules/block-url creates a BlockEntry record and redirects to /rules."""

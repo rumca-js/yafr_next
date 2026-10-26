@@ -17,6 +17,15 @@
         </div>
 
         <div class="d-flex align-items-center gap-2 flex-wrap">
+          <a href="{{ url_for('rules.block_lists_view') }}"
+             class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm"
+             id="btn-block-lists"
+             title="View and manage plain text block lists">
+            <i class="bi bi-card-checklist me-1"></i>Block Lists
+            {% if block_lists_count and block_lists_count > 0 %}
+              <span class="badge bg-secondary ms-1">{{ block_lists_count }}</span>
+            {% endif %}
+          </a>
           <button type="button"
                   class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm"
                   data-bs-toggle="modal"

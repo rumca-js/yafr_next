@@ -156,10 +156,17 @@ class TestBlockRepository(unittest.TestCase):
         self.assertEqual(self.list_repo.count_lists(), 2)
         self.assertEqual(self.list_repo.count_lists(processed=True), 1)
 
-        # Delete
+        # Delete single list
         self.assertTrue(self.list_repo.delete_list(bl2.id))
         self.assertIsNone(self.list_repo.get_list(bl2.id))
         self.assertEqual(self.list_repo.count_lists(), 1)
+
+        # Batch delete lists
+        bl3 = self.list_repo.add_list("https://example.com/3.txt")
+        bl4 = self.list_repo.add_list("https://example.com/4.txt")
+        deleted_count = self.list_repo.delete_lists([bl1.id, bl3.id, bl4.id])
+        self.assertEqual(deleted_count, 3)
+        self.assertEqual(self.list_repo.count_lists(), 0)
 
     def test_block_entry_crud_and_bulk_operations(self):
         """Tests CRUD, search, and bulk operations on BlockEntry."""

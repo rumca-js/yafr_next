@@ -256,6 +256,31 @@ class BlockEntryListRepository(BaseRepository[BlockEntryList]):
         self.commit()
         return True
 
+    def delete_lists(
+        self, list_ids: Iterable[int], delete_entries: bool = True
+    ) -> int:
+        """
+        Deletes multiple BlockEntryList records by ID and optionally deletes child BlockEntry items.
+
+        :param list_ids: Iterable of primary key IDs
+        :param delete_entries: If True, deletes child BlockEntry records referencing these lists
+        :return: Count of deleted lists
+        """
+        ids = [int(i) for i in list_ids if i is not None]
+        if not ids:
+            return 0
+
+        if delete_entries:
+            del_entries_stmt = delete(BlockEntry).where(
+                BlockEntry.block_list_id.in_(ids)
+            )
+            self.session.execute(del_entries_stmt)
+
+        del_lists_stmt = delete(BlockEntryList).where(BlockEntryList.id.in_(ids))
+        res = self.session.execute(del_lists_stmt)
+        self.commit()
+        return max(0, res.rowcount)
+
     def count_lists(self, processed: Optional[bool] = None) -> int:
         """
         Counts block entry lists matching optional processed filter.
@@ -577,6 +602,11 @@ class BlockRepository(BaseRepository[BlockEntryList]):
 
     def delete_list(self, list_id: int, delete_entries: bool = True) -> bool:
         return self.list_repo.delete_list(list_id=list_id, delete_entries=delete_entries)
+
+    def delete_lists(
+        self, list_ids: Iterable[int], delete_entries: bool = True
+    ) -> int:
+        return self.list_repo.delete_lists(list_ids, delete_entries=delete_entries)
 
     def count_lists(self, processed: Optional[bool] = None) -> int:
         return self.list_repo.count_lists(processed=processed)
