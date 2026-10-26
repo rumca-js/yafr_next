@@ -276,6 +276,8 @@ stateDiagram-v2
      - Disabled sources (`enabled = False`) are strictly skipped.
      - Sources fetched within the last hour (`datetime.now() - date_fetched < 1 hour`) are skipped unless explicitly triggered by user pull-to-refresh.
      - Sources ordered by oldest `date_fetched` or `date_fetched IS NULL`.
+   - **Block Check & Auto-Removal**:
+     - If `source.url` matches active blocking `EntryRules` or `BlockEntry` patterns, the source is automatically removed, its entries are unlinked, and a warning notification is recorded in `applogging`.
    - **Operational Hash Check**:
      - Computes binary SHA-256 hashes (`page_hash` and `body_hash`).
      - If hashes match `sourceoperationaldata`, payload parsing is skipped, saving compute and disk I/O.

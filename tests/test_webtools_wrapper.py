@@ -10,6 +10,7 @@ from sqlalchemy import select
 from webtoolkit import BaseUrl, RemoteUrl
 from webtoolkit.response import PageResponseObject
 from linkarchivetools.model.definitions import (
+    AppLogging,
     ConfigurationEntry,
     LinkDataModel,
     SourceOperationalData,
@@ -17,7 +18,10 @@ from linkarchivetools.model.definitions import (
 )
 from yafr.app import create_app
 from yafr.db import (
+    BlockEntryRepository,
     ConfigRepository,
+    LoggingRepository,
+    RulesRepository,
     SourceRepository,
     close_session,
     get_session,
@@ -232,6 +236,9 @@ class TestSourceServiceWithWrapper(unittest.TestCase):
         )
         self.session = get_session()
         self.source_repo = SourceRepository(self.session)
+        self.rules_repo = RulesRepository(self.session)
+        self.block_repo = BlockEntryRepository(self.session)
+        self.log_repo = LoggingRepository(self.session)
         self.source = self.source_repo.add_source(
             url="https://example.com/feed.xml",
             title="Test Feed",
@@ -454,6 +461,66 @@ class TestSourceServiceWithWrapper(unittest.TestCase):
             self.assertIsNone(op_data.page_hash)
             self.assertIsNone(op_data.body_hash)
             self.assertEqual(op_data.consecutive_errors, 0)
+
+    def test_fetch_source_removed_when_blocked_by_entry_rule(self):
+        """When source.url matches an EntryRule with block=True, source is removed and applogging records it."""
+        blocked_source = self.source_repo.add_source(
+            url="https://spam-feed.example.com/rss",
+            title="Spammy Feed",
+            source_type="RSS",
+            enabled=True,
+        )
+        source_id = blocked_source.id
+
+        # Add EntryRule with block=True
+        self.rules_repo.add_rule(
+            rule_name="Block Spam Feed",
+            trigger_rule_url=r".*spam-feed\.example\.com.*",
+            block=True,
+            priority=1,
+            enabled=True,
+        )
+
+        res = SourceService.fetch_source(source_id, session=self.session)
+
+        # Status is removed
+        self.assertEqual(res.get("status"), "removed")
+        self.assertTrue(res.get("success"))
+
+        # Source is removed from database
+        self.assertIsNone(self.source_repo.get_by_id(source_id))
+
+        # AppLogging contains notification
+        logs = self.log_repo.list_logs(limit=10)
+        self.assertTrue(any("removed (blocked)" in (log.info_text or "") for log in logs))
+        self.assertTrue(any("Block Spam Feed" in (log.detail_text or "") for log in logs))
+
+    def test_fetch_source_removed_when_blocked_by_block_entry(self):
+        """When source.url matches a BlockEntry pattern, source is removed and applogging records it."""
+        blocked_source = self.source_repo.add_source(
+            url="https://tracker-ads.net/syndication/rss",
+            title="Tracker Feed",
+            source_type="RSS",
+            enabled=True,
+        )
+        source_id = blocked_source.id
+
+        # Add BlockEntry whose url matches part of the source link
+        self.block_repo.add_entry("tracker-ads.net")
+
+        res = SourceService.fetch_source(source_id, session=self.session)
+
+        # Status is removed
+        self.assertEqual(res.get("status"), "removed")
+        self.assertTrue(res.get("success"))
+
+        # Source is removed from database
+        self.assertIsNone(self.source_repo.get_by_id(source_id))
+
+        # AppLogging contains notification
+        logs = self.log_repo.list_logs(limit=10)
+        self.assertTrue(any("removed (blocked)" in (log.info_text or "") for log in logs))
+        self.assertTrue(any("tracker-ads.net" in (log.detail_text or "") for log in logs))
 
 
 class TestWebToolsStatusApi(unittest.TestCase):

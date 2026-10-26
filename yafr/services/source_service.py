@@ -9,9 +9,10 @@ into linkdatamodel, consecutive error tracking, and progress polling status.
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
+import re
 import sys
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import warnings
 from bs4 import MarkupResemblesLocatorWarning
 from sqlalchemy import func, select
@@ -24,9 +25,12 @@ from linkarchivetools.model.definitions import (
     SourcesTable,
 )
 from linkarchivetools.model.sources import Sources
+from yafr.db.block_repository import BlockEntryRepository
+from yafr.db.credentials_repository import CredentialsRepository
+from yafr.db.logging_repository import LoggingRepository
+from yafr.db.rules_repository import RulesRepository
 from yafr.db.session import get_session, session_scope
 from yafr.db.source_repository import SourceRepository
-from yafr.db.credentials_repository import CredentialsRepository
 from yafr.services.entry_builder import EntryBuilder
 from yafr.services.webtools_service import WebToolsWrapper
 
@@ -183,6 +187,57 @@ class SourceService:
                 return cls._execute_fetch(source_id, scoped_session)
 
     @classmethod
+    def is_source_blocked(
+        cls,
+        source: SourcesTable,
+        session: Session,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Evaluates whether a source's URL matches any blocking EntryRules or BlockEntry patterns.
+
+        :param source: SourcesTable instance
+        :param session: Active database session
+        :return: Tuple of (is_blocked: bool, reason: Optional[str])
+        """
+        if not source or not source.url:
+            return False, None
+
+        raw_url = (source.url or "").strip()
+        builder = EntryBuilder(session=session)
+        cleaned_url = builder.sanitize_url(raw_url)
+
+        # 1. Check EntryRules with block=True
+        matching_rules = builder._get_matching_rules(
+            cleaned_url,
+            source=source,
+            title=source.title,
+            description=getattr(source, "description", None),
+        )
+        for rule in matching_rules:
+            if rule.block:
+                return True, f"URL blocked by entry rule '{rule.rule_name}'."
+
+        # If raw_url differs, also check against raw_url
+        if raw_url and raw_url != cleaned_url:
+            raw_matching_rules = builder._get_matching_rules(
+                raw_url,
+                source=source,
+                title=source.title,
+                description=getattr(source, "description", None),
+            )
+            for rule in raw_matching_rules:
+                if rule.block:
+                    return True, f"URL blocked by entry rule '{rule.rule_name}'."
+
+        # 2. Check BlockEntry repository
+        block_repo = BlockEntryRepository(session=session)
+        matching_block = block_repo.get_matching_entry(cleaned_url, raw_url=raw_url)
+        if matching_block:
+            return True, f"URL blocked by block entry '{matching_block.url}'."
+
+        return False, None
+
+    @classmethod
     def _execute_fetch(cls, source_id: int, session: Session) -> Dict[str, Any]:
         source = session.get(SourcesTable, source_id)
         if not source:
@@ -191,6 +246,41 @@ class SourceService:
                 "source_id": source_id,
                 "error": "Source not found",
                 "status": "error",
+            }
+
+        # Check if source.url matches entry rules (block), or blockentry
+        blocked, reason = cls.is_source_blocked(source, session)
+        if blocked:
+            source_title = source.title or source.url
+            source_url = source.url
+            logger.info(
+                "Removing source #%d (%s) because it is blocked: %s",
+                source_id,
+                source_url,
+                reason,
+            )
+
+            # Record in applogging
+            try:
+                log_repo = LoggingRepository(session=session)
+                log_repo.log(
+                    info_text=f"Source #{source_id} removed (blocked)",
+                    detail_text=f"Source '{source_title}' ({source_url}) was removed during fetch: {reason}",
+                    level=LoggingRepository.WARNING,
+                )
+            except Exception as log_err:
+                logger.warning("Failed to record source removal in applogging: %s", log_err)
+
+            # Remove source and unlink its entries
+            source_repo = SourceRepository(session=session)
+            source_repo.delete_source(source_id)
+
+            return {
+                "success": True,
+                "source_id": source_id,
+                "status": "removed",
+                "message": f"Source #{source_id} removed: {reason}",
+                "reason": reason,
             }
 
         op_data = (

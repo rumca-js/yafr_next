@@ -85,8 +85,9 @@ linkarchivetools business classes (controllers) vs tables. You may propose chang
  - if ConfigurationEntry does not allow specific type of of link display error, but allow such links to be inserte by
   the user
  - the system should not add link that is not accepted by ConfigurationEntry.accept* fields (accept_domain_link, accept_non_domain_links, etc)
-  - should apply for entry inserts or source inserts
-  - each view should provide title. Entry detail should display title, source detail should display title. Lists should display list title, with search words (if there are any)
+ - should apply for entry inserts or source inserts
+ - each view should provide title. Entry detail should display title, source detail should display title. Lists should display list title, with search words (if there are any)
+ - preferably views should have one place with autofocus. Search views on search input
 
  - Any input should be limited. Do not allow infinite amount of inputs. For example entries can be inserted by a textfield, but only allow 200 to ba added by one field at a time
  - Link addition UI provides a quick modal from navbar and EntriesListView with live validation, clickable proposition buttons, and a batch ingestion tab for up to 200 URLs.
