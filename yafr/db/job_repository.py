@@ -288,6 +288,44 @@ class JobRepository(BaseRepository[BackgroundJob]):
 
         return self.session.execute(stmt).scalar() or 0
 
+    def get_jobs_for_subjects(
+        self, subjects: List[str]
+    ) -> List[BackgroundJob]:
+        """
+        Retrieves active background jobs matching any of the given subjects.
+
+        :param subjects: List of subject strings (e.g. entry ID or URL)
+        :return: List of BackgroundJob instances
+        """
+        if not subjects:
+            return []
+        stmt = (
+            select(BackgroundJob)
+            .where(BackgroundJob.subject.in_(subjects))
+            .order_by(BackgroundJob.priority.asc(), BackgroundJob.date_created.desc())
+        )
+        return list(self.session.execute(stmt).scalars().all())
+
+    def get_history_for_subjects(
+        self, subjects: List[str], limit: int = 20
+    ) -> List[BackgroundJobHistory]:
+        """
+        Retrieves historical background jobs matching any of the given subjects.
+
+        :param subjects: List of subject strings (e.g. entry ID or URL)
+        :param limit: Maximum history records to return
+        :return: List of BackgroundJobHistory instances
+        """
+        if not subjects:
+            return []
+        stmt = (
+            select(BackgroundJobHistory)
+            .where(BackgroundJobHistory.subject.in_(subjects))
+            .order_by(BackgroundJobHistory.date_created.desc())
+            .limit(limit)
+        )
+        return list(self.session.execute(stmt).scalars().all())
+
     def get_distinct_job_types(self) -> List[str]:
         """
         Returns list of distinct job types currently present in the queue.

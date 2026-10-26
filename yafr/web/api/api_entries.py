@@ -246,6 +246,67 @@ def update_social_data(entry_id: int):
     )
 
 
+@api_entries_bp.route("/<int:entry_id>/jobs", methods=["GET"])
+def get_entry_jobs(entry_id: int):
+    """
+    Returns all background jobs (active and historical) connected to the entry.
+    """
+    session = get_session()
+    entry_repo = EntryRepository(session)
+    entry = entry_repo.get_by_id(entry_id)
+    if not entry:
+        return api_response(success=False, error="Entry not found", status_code=404)
+
+    subjects = [str(entry.id)]
+    if entry.link:
+        subjects.append(entry.link)
+
+    from yafr.services.job_service import JobService
+
+    raw = JobService.get_jobs_for_subjects(subjects=subjects, session=session)
+    active = [
+        {
+            "id": j.id,
+            "job": j.job,
+            "subject": j.subject,
+            "task": j.task,
+            "args": j.args,
+            "priority": j.priority,
+            "errors": j.errors or 0,
+            "enabled": bool(j.enabled),
+            "date_created": (
+                j.date_created.isoformat() if j.date_created else None
+            ),
+        }
+        for j in raw.get("jobs", [])
+    ]
+    history = [
+        {
+            "id": h.id,
+            "job": h.job,
+            "subject": h.subject,
+            "task": h.task,
+            "args": h.args,
+            "date_created": (
+                h.date_created.isoformat() if h.date_created else None
+            ),
+        }
+        for h in raw.get("history", [])
+    ]
+
+    return api_response(
+        success=True,
+        data={
+            "entry_id": entry_id,
+            "jobs": active,
+            "history": history,
+            "total_active": len(active),
+            "total_history": len(history),
+        },
+        message="Connected jobs retrieved.",
+    )
+
+
 @api_entries_bp.route("/<int:entry_id>/reset-data", methods=["POST"])
 def reset_data(entry_id: int):
     """

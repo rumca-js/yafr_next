@@ -180,6 +180,49 @@ class TestApiEntries(unittest.TestCase):
         self.assertEqual(job.job, JOB_LINK_DOWNLOAD_SOCIAL)
         self.assertEqual(job.subject, str(self.entry.id))
 
+    def test_api_get_entry_jobs(self):
+        """GET /api/entries/<id>/jobs returns connected active jobs and history."""
+        # When no jobs exist
+        res_empty = self.client.get(f"/api/entries/{self.entry.id}/jobs")
+        self.assertEqual(res_empty.status_code, 200)
+        data_empty = res_empty.get_json()["data"]
+        self.assertEqual(data_empty["entry_id"], self.entry.id)
+        self.assertEqual(data_empty["total_active"], 0)
+        self.assertEqual(len(data_empty["jobs"]), 0)
+
+        # Enqueue an active job
+        from linkarchivetools.model.definitions import BackgroundJob, BackgroundJobHistory
+        from yafr.workers.jobs.link_jobs import JOB_LINK_UPDATE_DATA, JOB_LINK_DOWNLOAD_SOCIAL
+
+        active_job = BackgroundJob(
+            job=JOB_LINK_UPDATE_DATA,
+            subject=str(self.entry.id),
+            priority=1,
+            enabled=True,
+            errors=0,
+        )
+        history_job = BackgroundJobHistory(
+            job=JOB_LINK_DOWNLOAD_SOCIAL,
+            subject=self.entry.link,
+        )
+        self.session.add(active_job)
+        self.session.add(history_job)
+        self.session.commit()
+
+        res = self.client.get(f"/api/entries/{self.entry.id}/jobs")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()["data"]
+        self.assertEqual(data["entry_id"], self.entry.id)
+        self.assertEqual(data["total_active"], 1)
+        self.assertEqual(data["jobs"][0]["job"], JOB_LINK_UPDATE_DATA)
+        self.assertEqual(data["jobs"][0]["subject"], str(self.entry.id))
+        self.assertEqual(data["total_history"], 1)
+        self.assertEqual(data["history"][0]["job"], JOB_LINK_DOWNLOAD_SOCIAL)
+
+        # 404 for unknown entry
+        res_404 = self.client.get("/api/entries/999999/jobs")
+        self.assertEqual(res_404.status_code, 404)
+
     def test_api_reset_data(self):
         """POST /api/entries/<id>/reset-data clears hashes and status code."""
         self.entry.contents_hash = b"fake-hash"

@@ -296,6 +296,36 @@ class JobService:
         return repo.clear_all_jobs()
 
     @classmethod
+    def get_jobs_for_subjects(
+        cls,
+        subjects: List[str],
+        include_history: bool = True,
+        limit_history: int = 20,
+        session: Optional[Session] = None,
+    ) -> Dict[str, Any]:
+        """
+        Retrieves active jobs and historical records matching any of the given subjects.
+
+        :param subjects: Target subject identifiers (e.g. entry ID or link)
+        :param include_history: Whether to query historical jobs
+        :param limit_history: Maximum history records to return
+        :param session: Optional active database session
+        :return: Dict containing 'jobs' and 'history' lists
+        """
+        sess = session or get_session()
+        repo = JobRepository(sess)
+        active_jobs = repo.get_jobs_for_subjects(subjects)
+        history_jobs = (
+            repo.get_history_for_subjects(subjects, limit=limit_history)
+            if include_history
+            else []
+        )
+        return {
+            "jobs": active_jobs,
+            "history": history_jobs,
+        }
+
+    @classmethod
     def clear_error_jobs(cls, session: Optional[Session] = None) -> int:
         """
         Deletes all jobs with errors > 0 from the queue.

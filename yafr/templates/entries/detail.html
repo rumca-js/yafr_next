@@ -172,6 +172,12 @@
         <span class="badge bg-body-secondary text-secondary border shadow-sm">
           <i class="bi bi-eye me-1"></i>{{ entry.page_rating_visits or 0 }} visits
         </span>
+
+        <!-- Connected Active Jobs Badge -->
+        <span id="detail-jobs-badge" class="badge bg-warning text-dark shadow-sm d-none">
+          <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"></span>
+          <span id="detail-jobs-badge-text">Jobs Running</span>
+        </span>
       </div>
 
       <!-- Primary Action Buttons Row -->
@@ -288,6 +294,22 @@
         >
           <i class="bi bi-trash me-1"></i>Delete
         </button>
+      </div>
+
+      <!-- Connected Background Jobs Alert -->
+      <div id="entry-jobs-alert" class="alert alert-info py-2 px-3 mb-4 d-none align-items-center justify-content-between" role="alert">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+          <span class="spinner-border spinner-border-sm text-info" role="status" aria-hidden="true"></span>
+          <span>
+            <strong>Background Jobs:</strong>
+            <span id="entry-jobs-list" class="ms-1"></span>
+          </span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <a href="/jobs" class="btn btn-sm btn-outline-info rounded-pill px-2 py-0 text-nowrap" title="Manage background jobs">
+            View Jobs <i class="bi bi-arrow-right ms-1"></i>
+          </a>
+        </div>
       </div>
 
       <!-- Tags Section -->
@@ -757,6 +779,50 @@
       toast.show();
     }
 
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function loadEntryJobs() {
+      $.ajax({
+        url: '/api/entries/' + entryId + '/jobs',
+        type: 'GET',
+        success: function(res) {
+          if (res.success && res.data) {
+            const jobs = res.data.jobs || [];
+            const badge = $('#detail-jobs-badge');
+            const alert = $('#entry-jobs-alert');
+            const list = $('#entry-jobs-list');
+
+            if (jobs.length > 0) {
+              const jobBadges = jobs.map(function(j) {
+                const statusText = !j.enabled ? 'paused' : (j.errors > 0 ? 'errors: ' + j.errors : 'queued');
+                const statusClass = !j.enabled ? 'bg-secondary' : (j.errors > 0 ? 'bg-danger' : 'bg-primary');
+                return '<span class="badge ' + statusClass + ' rounded-pill px-2 py-1 ms-1">' +
+                       escapeHtml(j.job) + ' <small>(' + statusText + ')</small></span>';
+              }).join(' ');
+
+              list.html(jobBadges);
+              $('#detail-jobs-badge-text').text(jobs.length + ' job' + (jobs.length > 1 ? 's' : '') + ' in queue');
+              badge.removeClass('d-none').addClass('d-inline-flex align-items-center');
+              alert.removeClass('d-none').addClass('d-flex');
+            } else {
+              badge.addClass('d-none').removeClass('d-inline-flex');
+              alert.addClass('d-none').removeClass('d-flex');
+              list.empty();
+            }
+          }
+        }
+      });
+    }
+
+    loadEntryJobs();
+
     // 1. Copy Link to Clipboard
     $('.btn-copy-link').on('click', function(e) {
       e.preventDefault();
@@ -856,6 +922,7 @@
         success: function(res) {
           if (res.success) {
             showToast(res.message || 'Link metadata update job queued.');
+            loadEntryJobs();
           }
         },
         error: function(xhr) {
@@ -879,6 +946,7 @@
         success: function(res) {
           if (res.success) {
             showToast(res.message || 'Social data download job queued.');
+            loadEntryJobs();
           }
         },
         error: function(xhr) {

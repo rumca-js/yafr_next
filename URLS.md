@@ -132,6 +132,34 @@ Following the project requirement to **"prefer having small server functions tha
   ```
 - **Offline Capable**: No (requires internet). Disabled if offline.
 
+#### `GET /api/entries/<int:id>/jobs`
+- **Purpose**: Retrieves all background jobs (both currently queued/active and history) connected to the entry (matched by entry ID or entry URL).
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "entry_id": 42,
+    "jobs": [
+      {
+        "id": 106,
+        "job": "link-download-social",
+        "subject": "42",
+        "task": null,
+        "args": null,
+        "priority": 1,
+        "errors": 0,
+        "enabled": true,
+        "date_created": "2026-10-26T18:00:00Z"
+      }
+    ],
+    "history": [],
+    "total_active": 1,
+    "total_history": 0,
+    "message": "Connected jobs retrieved."
+  }
+  ```
+- **Offline Capable**: Yes.
+
 #### `POST /api/entries/<int:id>/reset-data`
 - **Purpose**: Resets extracted metadata (hashes, description, thumbnails) back to raw state.
 - **Response**:
