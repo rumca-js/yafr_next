@@ -779,15 +779,6 @@
       toast.show();
     }
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-    }
-
     function loadEntryJobs() {
       $.ajax({
         url: '/api/entries/' + entryId + '/jobs',

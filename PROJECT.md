@@ -151,6 +151,7 @@ It should be possible to download a new database .db file from the internet, or 
     -- for example /api/source-disable/123 should disable source 123, and provide JSON response
  - provide interactive UI, that fetches data when necessary
  - use bootstrap 5, you can use javascript, jQuery
+ - create a javascript libraries that handles code that could be reused between views (escapeHtml, etc)
  - pages should be quite responsive. Not all page contents need to be refreshed when action is performed, some sections can be fetched as needed
  - prefer using css files for styles
  - when removing rows remember to remove rows that depend on it. For example some tables depend on linkdatamodel entries
