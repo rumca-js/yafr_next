@@ -75,13 +75,21 @@
     </div>
   {% elif entry.thumbnail and (config.show_icons if config and config.show_icons is not none else true) %}
     <div class="card mb-4 shadow-sm border p-3 text-center bg-body-tertiary">
-      <img 
-        src="{{ entry.thumbnail }}" 
-        alt="{{ entry.title or 'Thumbnail' }}" 
-        class="img-fluid rounded mx-auto shadow-sm" 
-        style="max-height: 420px; object-fit: contain;"
-        loading="lazy"
+      <a 
+        href="{{ entry.link }}" 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        title="{{ entry.title or entry.link }}"
+        class="d-inline-block text-decoration-none"
       >
+        <img 
+          src="{{ entry.thumbnail }}" 
+          alt="{{ entry.title or 'Thumbnail' }}" 
+          class="img-fluid rounded mx-auto shadow-sm" 
+          style="max-height: 420px; object-fit: contain;"
+          loading="lazy"
+        >
+      </a>
     </div>
   {% endif %}
 
@@ -90,8 +98,17 @@
     <div class="card-body p-4">
       
       <!-- Title -->
-      <h1 class="h3 fw-bold mb-3 text-body-emphasis">
-        {{ entry.title or entry.link }}
+      <h1 class="h3 fw-bold mb-3">
+        <a 
+          href="{{ entry.link }}" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          class="text-body-emphasis text-decoration-none link-primary-hover"
+          title="{{ entry.title or entry.link }}"
+        >
+          {{ entry.title or entry.link }}
+          <i class="bi bi-box-arrow-up-right ms-2 fs-6 text-muted align-middle"></i>
+        </a>
       </h1>
 
       <!-- Link URL and Quick Actions -->
