@@ -70,7 +70,7 @@ def _reconcile_schema(engine: Engine) -> None:
                 if col.name not in existing_cols:
                     col_type = col.type.compile(dialect)
                     alter_query = (
-                        f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type};"
+                        f'ALTER TABLE {table_name} ADD COLUMN "{col.name}" {col_type};'
                     )
                     try:
                         conn.execute(text(alter_query))

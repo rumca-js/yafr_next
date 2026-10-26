@@ -131,15 +131,30 @@ class LinkUpdateDataJobHandler(BaseJobHandler):
                     entry.date_published = date_published
             if author and str(author).strip():
                 entry.author = str(author).strip()
-            if album and str(album).strip():
-                entry.album = str(album).strip()
-            if language and str(language).strip():
-                entry.language = str(language).strip()
-            if thumbnail and str(thumbnail).strip():
-                entry.thumbnail = str(thumbnail).strip()
+            if album and isinstance(album, str) and album.strip():
+                entry.album = album.strip()
+            if language and isinstance(language, str) and language.strip():
+                entry.language = language.strip()
+            if thumbnail and isinstance(thumbnail, str) and thumbnail.strip():
+                entry.thumbnail = thumbnail.strip()
 
-            status_code = response.get_status_code() if hasattr(response, "get_status_code") else None
-            if status_code:
+            status_code = None
+            if hasattr(web_client, "get_status_code"):
+                try:
+                    sc = web_client.get_status_code()
+                    if isinstance(sc, int):
+                        status_code = sc
+                except Exception:
+                    pass
+            if status_code is None and hasattr(response, "get_status_code"):
+                try:
+                    sc = response.get_status_code()
+                    if isinstance(sc, int):
+                        status_code = sc
+                except Exception:
+                    pass
+
+            if status_code is not None:
                 entry.status_code = status_code
 
             # Check if link is acceptable using entry rules; if blocked, remove it

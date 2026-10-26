@@ -23,7 +23,7 @@
  - provide docker compose script and Dockerfile
  - On hold - introduce system operations table to mark that threads are working
  - if database file is replaced, how thread should be restarted?
- - provide ability to block entries (blockentries tbale)
+ - [x] provide ability to block entries (blockentries and blockentrylist tables supported via repositories, parsing, and splitting)
  - provide ability to add many sources
  - page properties tool
  - source list: order by errors

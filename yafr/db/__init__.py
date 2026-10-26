@@ -3,6 +3,14 @@ Database and Repository Layer Package Exports for YAFR.
 """
 
 from yafr.db.base_repository import BaseRepository
+from yafr.db.block_repository import (
+    BlockEntryListRepository,
+    BlockEntryRepository,
+    BlockRepository,
+    fetch_and_split_block_list_url,
+    read_and_split_block_list_file,
+    split_block_list_text,
+)
 from yafr.db.config_repository import ConfigRepository
 from yafr.db.credentials_repository import CredentialsRepository
 from yafr.db.entry_repository import EntryRepository
@@ -28,6 +36,12 @@ __all__ = [
     "close_session",
     "session_scope",
     "BaseRepository",
+    "BlockRepository",
+    "BlockEntryRepository",
+    "BlockEntryListRepository",
+    "split_block_list_text",
+    "read_and_split_block_list_file",
+    "fetch_and_split_block_list_url",
     "ConfigRepository",
     "CredentialsRepository",
     "EntryRepository",

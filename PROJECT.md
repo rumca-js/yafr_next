@@ -49,6 +49,8 @@ Naming vs Table names
  - Credentials - credentials (used for email source type)
  - AppLogging - applogging (logs). Follows logging levels
  - SearchView, or Filters - searchview
+ - Block Entry Lists - blockentrylist
+ - Block Entries - blockentry
 
 linkdatamodel table dependencies:
  - linkdatamodel.id = entrycompactedtags.entry_id

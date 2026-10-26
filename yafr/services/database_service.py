@@ -112,6 +112,18 @@ DATABASE_TABLE_METADATA = [
         "description": "Regex pattern rules for blocking, trusting, and auto-tagging",
         "icon": "bi-shield-check",
     },
+    {
+        "table_name": "blockentrylist",
+        "label": "Block Entry Lists",
+        "description": "Source URLs of plain text blocklists (e.g. EasyList)",
+        "icon": "bi-shield-slash",
+    },
+    {
+        "table_name": "blockentry",
+        "label": "Block Entries",
+        "description": "Blocked URLs, domains, and patterns extracted from blocklists",
+        "icon": "bi-slash-circle",
+    },
 ]
 
 
