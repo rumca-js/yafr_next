@@ -529,17 +529,24 @@ class BlockEntryRepository(BaseRepository[BlockEntry]):
         self.commit()
         return max(0, result.rowcount)
 
-    def count_entries(self, block_list_id: Optional[int] = None) -> int:
+    def count_entries(
+        self,
+        block_list_id: Optional[int] = None,
+        search: Optional[str] = None,
+    ) -> int:
         """
-        Counts block entries, optionally filtered by block_list_id.
+        Counts block entries, optionally filtered by block_list_id and search string.
 
         :param block_list_id: Optional origin block list ID filter
+        :param search: Optional search substring within entry url
         :return: Count of entries
         """
-        clauses = []
+        stmt = select(func.count(BlockEntry.id))
         if block_list_id is not None:
-            clauses.append(BlockEntry.block_list_id == block_list_id)
-        return self.count(BlockEntry, *clauses)
+            stmt = stmt.where(BlockEntry.block_list_id == block_list_id)
+        if search:
+            stmt = stmt.where(BlockEntry.url.contains(search.strip()))
+        return self.session.execute(stmt).scalar() or 0
 
     def clear_all(self) -> int:
         """
