@@ -772,13 +772,13 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "linkarchivetools"
-version = "1.1.4"
+version = "1.1.6"
 description = "Link Archive Tools"
 optional = false
 python-versions = "<4.0,>=3.10"
 files = [
-    {file = "linkarchivetools-1.1.4-py3-none-any.whl", hash = "sha256:0080bf16c841f514e10c83dcb524dfa7980c60459cf455b6b0c22f69b0439bcc"},
-    {file = "linkarchivetools-1.1.4.tar.gz", hash = "sha256:b7bef4cc1b47ebc9c3b2a25ef676cc0ae3b4c8e8db014475b127044f98229868"},
+    {file = "linkarchivetools-1.1.6-py3-none-any.whl", hash = "sha256:77e0cf9c7a2f3b1426d7b93507aa3a70d85d4eea1833a420f612fb0a9516a4c9"},
+    {file = "linkarchivetools-1.1.6.tar.gz", hash = "sha256:7a579e1f1abb314b29928838dc53e39556af9e582765ff016a94cc8a7ed4fd6b"},
 ]
 
 [package.dependencies]
@@ -787,7 +787,7 @@ python-dateutil = ">=2.8.2,<3.0.0"
 requests = ">=2.32.5,<3.0.0"
 sqlalchemy = "*"
 sympy = ">=1.13.2,<2.0.0"
-webtoolkit = ">=0.1.74,<0.2.0"
+webtoolkit = ">=0.1.76,<0.2.0"
 
 [[package]]
 name = "lxml"
@@ -1868,13 +1868,13 @@ files = [
 
 [[package]]
 name = "webtoolkit"
-version = "0.1.75"
+version = "0.1.76"
 description = "Web tools and interfaces for Internet data processing."
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "webtoolkit-0.1.75-py3-none-any.whl", hash = "sha256:07be0cf8a26639971e7e7174317db7ac3eb6696d48b161d4819b4a1267432f3f"},
-    {file = "webtoolkit-0.1.75.tar.gz", hash = "sha256:e9c85d2a93d58014642c52c6a0ca19fb73a7b381f886caf232e53bf62113a596"},
+    {file = "webtoolkit-0.1.76-py3-none-any.whl", hash = "sha256:8c0150b695a7d52cea6b5aebf5d86c23347a5fc807405a5adea953b9594d0676"},
+    {file = "webtoolkit-0.1.76.tar.gz", hash = "sha256:054450bb16d6873d10b51be13a697c9f08e135963ab0ac3c36a269963eb1ac1c"},
 ]
 
 [package.dependencies]
@@ -1952,4 +1952,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "9b5b515251be75623822b763c58141093ccafc7945fa309b79c0462773bdc54e"
+content-hash = "ec790938814a1019bdcd3756e66ea2ab327bfa9dd697018bd4635bca2c55f48f"

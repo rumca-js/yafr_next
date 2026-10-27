@@ -674,6 +674,10 @@ class TestWebToolsStatusApi(unittest.TestCase):
         mock_handler.get_tags.return_value = ["tech", "python"]
         mock_handler.get_canonical_url.return_value = "https://example.com/canonical"
         mock_handler.get_social_properties.return_value = {"rating": 4.5, "thumbs_up": 100}
+        mock_handler.get_content_links.return_value = [
+            "https://example.com/link1",
+            "https://example.com/link2",
+        ]
 
         wrapper.url_handler = mock_handler
         wrapper._response = MagicMock(is_valid=lambda: True)
@@ -690,11 +694,41 @@ class TestWebToolsStatusApi(unittest.TestCase):
         self.assertEqual(
             wrapper.get_social_properties(), {"rating": 4.5, "thumbs_up": 100}
         )
+        self.assertEqual(
+            wrapper.get_content_links(),
+            ["https://example.com/link1", "https://example.com/link2"],
+        )
+
+    def test_get_content_links_handling(self):
+        """
+        WebToolsWrapper.get_content_links always returns a list and handles
+        various formats and handler errors gracefully.
+        """
+        wrapper = WebToolsWrapper(url="https://example.com/page", session=self.session)
+        mock_handler = MagicMock()
+        wrapper.url_handler = mock_handler
+        wrapper._response = MagicMock(is_valid=lambda: True)
+
+        # 1. Normal list
+        mock_handler.get_content_links.return_value = ["https://a.com", "https://b.com"]
+        self.assertEqual(wrapper.get_content_links(), ["https://a.com", "https://b.com"])
+
+        # 2. Set / tuple conversion to list
+        mock_handler.get_content_links.return_value = ("https://c.com",)
+        self.assertEqual(wrapper.get_content_links(), ["https://c.com"])
+
+        # 3. None returns empty list
+        mock_handler.get_content_links.return_value = None
+        self.assertEqual(wrapper.get_content_links(), [])
+
+        # 4. Exception handled gracefully returning empty list
+        mock_handler.get_content_links.side_effect = RuntimeError("Parser error in webtoolkit")
+        self.assertEqual(wrapper.get_content_links(), [])
 
     def test_convenience_fetch_metadata_helpers(self):
         """
-        WebToolsWrapper.fetch_title, fetch_description, fetch_date_published, and
-        fetch_author work correctly.
+        WebToolsWrapper.fetch_title, fetch_description, fetch_date_published,
+        fetch_author, and fetch_content_links work correctly.
         """
         pub_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
         mock_handler = MagicMock()
@@ -702,6 +736,7 @@ class TestWebToolsStatusApi(unittest.TestCase):
         mock_handler.get_description.return_value = "Fetched Description"
         mock_handler.get_date_published.return_value = pub_date
         mock_handler.get_author.return_value = "Fetched Author"
+        mock_handler.get_content_links.return_value = ["https://example.com/out1"]
 
         with patch.object(WebToolsWrapper, "_create_handler", return_value=mock_handler):
             self.assertEqual(
@@ -725,6 +760,12 @@ class TestWebToolsStatusApi(unittest.TestCase):
                     "https://example.com/f", session=self.session
                 ),
                 "Fetched Author",
+            )
+            self.assertEqual(
+                WebToolsWrapper.fetch_content_links(
+                    "https://example.com/f", session=self.session
+                ),
+                ["https://example.com/out1"],
             )
 
 

@@ -21,12 +21,6 @@ from webtoolkit import BaseUrl, RemoteUrl
 # Suppress BeautifulSoup markup locator warning from brutefeedparser/webtoolkit
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-# Apply webtoolkit email reader import bug workaround (ARCHITECTURE.md section 3.4)
-if "webtoolkit.utils" in sys.modules and "utils" not in sys.modules:
-    sys.modules["utils"] = sys.modules["webtoolkit.utils"]
-elif hasattr(webtoolkit, "utils") and "utils" not in sys.modules:
-    sys.modules["utils"] = webtoolkit.utils
-
 logger = logging.getLogger(__name__)
 
 # Standard background job identifier for link metadata update
@@ -40,6 +34,15 @@ class WebToolsWrapper:
     If remote webtools is configured (via remote_webtools_server_location in
     configurationentry or explicit parameter), RemoteUrl is used for network
     operations. Otherwise, local BaseUrl is used.
+
+    if url_handler exist it needs to have some common API:
+     - get_title()
+     - get_description()
+     - get_author()
+     - get_language()
+     - get_response()
+     - get_entries()
+     - get_content_links()
     """
 
     def __init__(
@@ -490,6 +493,22 @@ class WebToolsWrapper:
                 logger.debug("url_handler.get_social_properties() failed: %s", exc)
         return {}
 
+    def get_content_links(self) -> List[str]:
+        """
+        Retrieves links contained in the content using BaseUrl or RemoteUrl.
+        Extracts links directly via underlying handler.get_content_links().
+
+        :return: List of links discovered within the content, or empty list on failure.
+        """
+        self.get_response()
+        if self.url_handler and hasattr(self.url_handler, "get_content_links"):
+            try:
+                links = self.url_handler.get_content_links()
+                return links
+            except Exception as exc:
+                logger.debug("url_handler.get_content_links() failed: %s", exc)
+        return []
+
     @classmethod
     def fetch_title(
         cls,
@@ -573,6 +592,27 @@ class WebToolsWrapper:
             timeout_s=timeout_s,
         )
         return wrapper.get_author()
+
+    @classmethod
+    def fetch_content_links(
+        cls,
+        url: str,
+        remote_server_location: Optional[str] = None,
+        session: Optional[Session] = None,
+        use_remote: Optional[bool] = None,
+        timeout_s: Optional[int] = None,
+    ) -> List[str]:
+        """
+        Convenience class method to fetch content links in one call.
+        """
+        wrapper = cls(
+            url=url,
+            remote_server_location=remote_server_location,
+            session=session,
+            use_remote=use_remote,
+            timeout_s=timeout_s,
+        )
+        return wrapper.get_content_links()
 
     @classmethod
     def fetch_text(
@@ -697,4 +737,5 @@ fetch_title = WebToolsWrapper.fetch_title
 fetch_description = WebToolsWrapper.fetch_description
 fetch_date_published = WebToolsWrapper.fetch_date_published
 fetch_author = WebToolsWrapper.fetch_author
+fetch_content_links = WebToolsWrapper.fetch_content_links
 check_remote_status = WebToolsWrapper.check_remote_status
