@@ -304,6 +304,8 @@ class SourceService:
 
         if source.source_type == Sources.SOURCE_TYPE_EMAIL:
             return cls._execute_fetch_email(source, op_data, session)
+        elif source.source_type == Sources.SOURCE_TYPE_PARSE:
+            return cls._execute_fetch_parse(source, op_data, session)
         else:
             return cls._execute_fetch_rss(source, op_data, session)
 
@@ -524,6 +526,15 @@ class SourceService:
             source, op_data, session, EmailSourceExtractor
         )
 
+    @classmethod
+    def _execute_fetch_parse(cls, source, op_data, session: Session) -> Dict[str, Any]:
+        """
+        Executes fetch pipeline for email sources.
+        """
+        return cls._execute_source_pipeline(
+            source, op_data, session, ParseSourceExtractor
+        )
+
 
 class FetchExtractionResult:
     """
@@ -681,5 +692,77 @@ class EmailSourceExtractor:
             raw_entries=raw_entries,
             page_hash=None,
             body_hash=None,
+            is_unchanged=False,
+        )
+
+class ParseSourceExtractor:
+    """
+    Extractor strategy for email sources using EmailReader.
+    Handles credentials lookup, IMAP connection, and email retrieval.
+    Does not compute content hashes.
+    """
+
+    @classmethod
+    def extract(
+        cls,
+        source: SourcesTable,
+        op_data: SourceOperationalData,
+        session: Session,
+    ) -> FetchExtractionResult:
+        try:
+            web_client = WebToolsWrapper(url=source.url, session=session, timeout_s=15)
+            response = web_client.get_response()
+            if response is None:
+                raise ConnectionError(
+                    f"Failed to fetch content from {source.url} (no response received)"
+                )
+
+            if not response.is_valid():
+                status = response.get_status_code()
+                err_detail = (
+                    "; ".join(response.errors)
+                    if getattr(response, "errors", None)
+                    else ""
+                )
+                raise ConnectionError(
+                    f"HTTP status {status} when fetching {source.url}"
+                    + (f": {err_detail}" if err_detail else "")
+                )
+
+        except Exception as err:
+            logger.warning(
+                "Failed to fetch source %s (%s): %s", source.id, source.url, err
+            )
+            return FetchExtractionResult(error=f"Network download error: {err}")
+
+        # Calculate hashes
+        page_hash = hashlib.sha256(content_bytes).digest()
+        body_hash = page_hash
+
+        # Check for operational hash equality
+        if op_data.page_hash and op_data.page_hash == page_hash:
+            return FetchExtractionResult(
+                page_hash=page_hash,
+                body_hash=body_hash,
+                is_unchanged=True,
+            )
+
+        # Parse RSS / Feed entries
+        try:
+            links = web_client.get_content_links()
+            raw_entries = []
+            for link in links:
+                builder = EntryBuilder(session=session)
+                if builder.can_build(url=link):
+                    raw_entries.append({"link": link})
+                    # TODO add background job to update link
+        except Exception as err:
+            logger.warning("Error parsing RSS feed for source %s: %s", source.id, err)
+            return FetchExtractionResult(error=f"Feed parsing error: {err}")
+
+        return FetchExtractionResult(
+            raw_entries=raw_entries,
+            page_hash=page_hash,
+            body_hash=body_hash,
             is_unchanged=False,
         )
