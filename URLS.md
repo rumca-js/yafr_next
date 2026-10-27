@@ -24,6 +24,8 @@ This document details the complete routing matrix for YAFR, encompassing both **
 | `/jobs` | `GET` | **JobsView** | Displays table of background jobs, orderable by priority, date created, or error count, with type filters and pause/resume/delete actions. | **Yes** |
 | `/logs` | `GET` | **LogsView** | Displays entries from `applogging` table, filterable by severity level (DEBUG, INFO, WARNING, ERROR, CRITICAL). | **Yes** |
 | `/rules` | `GET`, `POST` | **EntryRulesScreen** | Displays and configures URL regex rules (`trigger_rule_url`), actions (block, trust, auto-tag), and age limits. | **Yes** |
+| `/rules/blocked-urls` | `GET` | **BlockEntriesScreen** | Displays and manages individual BlockEntry records (blocked URLs/domains) with search, pagination, and deletion controls. | **Yes** |
+| `/rules/block-lists` | `GET` | **BlockListsScreen** | Displays and manages plain text block lists with ingestion and parsing controls. | **Yes** |
 | `/database` | `GET` | **DatabaseView** | Displays database path, creation date, last refresh, row counts, cache clear buttons, and remote DB download form. | **Yes** |
 | `/status` | `GET` | **StatusView** | Displays health of the application, background task runner status, active worker loops, and network connectivity state. | **Yes** |
 | `/configuration` | `GET`, `POST` | **ConfigurationView** | Allows user to modify display styles (`style-light`, `style-dark`), display types (`standard`, `gallery`, etc.), alphas, and quotas. | **Yes** |

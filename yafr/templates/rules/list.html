@@ -17,6 +17,15 @@
         </div>
 
         <div class="d-flex align-items-center gap-2 flex-wrap">
+          <a href="{{ url_for('rules.blocked_urls_view') }}"
+             class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm"
+             id="btn-blocked-urls"
+             title="View and manage blocked URLs and patterns">
+            <i class="bi bi-slash-circle me-1"></i>Blocked Urls
+            {% if blocked_urls_count and blocked_urls_count > 0 %}
+              <span class="badge bg-danger ms-1">{{ "{:,}".format(blocked_urls_count) }}</span>
+            {% endif %}
+          </a>
           <a href="{{ url_for('rules.block_lists_view') }}"
              class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm"
              id="btn-block-lists"
@@ -27,11 +36,12 @@
             {% endif %}
           </a>
           <button type="button"
-                  class="btn btn-outline-danger btn-sm rounded-pill px-3 shadow-sm"
+                  class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm"
                   data-bs-toggle="modal"
                   data-bs-target="#blockUrlModal"
-                  id="btn-block-url">
-            <i class="bi bi-slash-circle me-1"></i>Block Url
+                  id="btn-block-url"
+                  title="Quickly block a URL or pattern">
+            <i class="bi bi-plus-circle me-1"></i>Block Url
           </button>
           <a href="{{ url_for('rules.rule_add') }}" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm" id="btn-add-rule">
             <i class="bi bi-plus-lg me-1"></i>Add Rule
@@ -188,59 +198,6 @@
         </div>
 
       {% endif %}
-
-      <!-- Block Entries Section -->
-      <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-slash-circle text-danger fs-5"></i>
-            <h5 class="mb-0 fw-semibold">Blocked URLs &amp; Patterns</h5>
-            <span class="badge bg-danger-subtle text-danger-emphasis border ms-1">{{ block_entries|length if block_entries else 0 }}</span>
-          </div>
-          <button type="button"
-                  class="btn btn-outline-danger btn-sm rounded-pill px-3"
-                  data-bs-toggle="modal"
-                  data-bs-target="#blockUrlModal">
-            <i class="bi bi-plus-lg me-1"></i>Block Url
-          </button>
-        </div>
-        {% if not block_entries %}
-          <div class="card-body text-center py-4 text-muted">
-            <p class="mb-0 small text-secondary">
-              No blocked URLs configured. Click <strong>Block Url</strong> to add individual domain or URL patterns to block.
-            </p>
-          </div>
-        {% else %}
-          <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-              <thead class="table-light small">
-                <tr>
-                  <th style="width: 80px;" class="text-center">#</th>
-                  <th>URL / Domain / Pattern</th>
-                  <th style="width: 140px;" class="text-center">Operations</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for b in block_entries %}
-                  <tr>
-                    <td class="text-center text-muted small">{{ b.id }}</td>
-                    <td>
-                      <code class="text-danger fw-semibold">{{ b.url }}</code>
-                    </td>
-                    <td class="text-center">
-                      <form method="POST" action="{{ url_for('rules.block_entry_delete', id=b.id) }}" class="d-inline" onsubmit="return confirm('Remove blocked URL \'{{ b.url }}\'?');">
-                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove blocked URL">
-                          <i class="bi bi-trash"></i>
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% endif %}
-      </div>
 
     </div>
   </div>

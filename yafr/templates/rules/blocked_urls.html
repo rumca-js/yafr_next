@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if query %}
+    {{ query }} - {{ app_name }} Blocked URLs
+  {% else %}
+    {{ app_name }} - Blocked URLs
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-11">
+
+      <!-- Breadcrumb Navigation -->
+      <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item"><a href="{{ url_for('rules.rules_list') }}">Rules</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Blocked URLs</li>
+        </ol>
+      </nav>
+
+      <!-- Header -->
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-slash-circle text-danger fs-4"></i>
+          <h4 class="mb-0 fw-semibold">Blocked URLs &amp; Patterns</h4>
+          <span class="badge bg-danger-subtle text-danger-emphasis border ms-1">
+            {{ "{:,}".format(total_all_count) }}
+          </span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <a href="{{ url_for('rules.rules_list') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i>Back to Rules
+          </a>
+          <a href="{{ url_for('rules.block_lists_view') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-card-checklist me-1"></i>Block Lists
+            {% if block_lists_count and block_lists_count > 0 %}
+              <span class="badge bg-secondary ms-1">{{ block_lists_count }}</span>
+            {% endif %}
+          </a>
+          <button type="button"
+                  class="btn btn-danger btn-sm rounded-pill px-3 shadow-sm"
+                  data-bs-toggle="modal"
+                  data-bs-target="#blockUrlModal"
+                  id="btn-add-block-url">
+            <i class="bi bi-plus-lg me-1"></i>Block URL
+          </button>
+        </div>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="alert alert-info alert-dismissible fade show small mb-4" role="alert">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Blocked URLs &amp; Patterns</strong> prevent unwanted web content, advertisements, and tracking domains from being ingested.
+        Candidate URLs matching any part of these patterns are automatically rejected during source refresh and link creation.
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'success' }} alert-dismissible fade show small mb-3" role="alert">
+              <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' }} me-1"></i>
+              {{ message }}
+              <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Search & Filter Controls -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3">
+          <form method="GET" action="{{ url_for('rules.blocked_urls_view') }}" class="row g-2 align-items-center">
+            <div class="col-12 col-md-7 col-lg-8">
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0">
+                  <i class="bi bi-search text-secondary"></i>
+                </span>
+                <input type="text"
+                       class="form-control border-start-0"
+                       name="q"
+                       id="blocked-urls-search-input"
+                       placeholder="Search blocked URLs, domains, or substrings..."
+                       value="{{ query }}"
+                       autocomplete="off"
+                       autofocus>
+                {% if query %}
+                  <a href="{{ url_for('rules.blocked_urls_view', order=order) }}" class="btn btn-outline-secondary" title="Clear search">
+                    <i class="bi bi-x-lg"></i>
+                  </a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary px-3">
+                  Search
+                </button>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-5 col-lg-4 d-flex justify-content-md-end align-items-center gap-2">
+              <label for="order-select" class="small text-secondary mb-0">Sort:</label>
+              <select name="order" id="order-select" class="form-select form-select-sm w-auto rounded-pill" onchange="this.form.submit()">
+                <option value="id" {% if order == 'id' %}selected{% endif %}>By ID (Oldest first)</option>
+                <option value="url" {% if order == 'url' %}selected{% endif %}>By URL (Alphabetical)</option>
+              </select>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Block Entries Content -->
+      {% if total_all_count == 0 %}
+        <!-- Entirely Empty State -->
+        <div class="card border-0 shadow-sm text-center py-5 my-3">
+          <div class="card-body">
+            <i class="bi bi-slash-circle display-4 d-block mb-3 text-secondary"></i>
+            <h5>No Blocked URLs</h5>
+            <p class="text-secondary small mb-4">
+              Add individual domain or URL patterns to block, or import a block list file.
+            </p>
+            <div class="d-flex justify-content-center gap-2">
+              <button type="button"
+                      class="btn btn-danger btn-sm rounded-pill px-4"
+                      data-bs-toggle="modal"
+                      data-bs-target="#blockUrlModal">
+                <i class="bi bi-plus-lg me-1"></i>Block URL
+              </button>
+              <a href="{{ url_for('rules.block_lists_view') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-4">
+                <i class="bi bi-card-checklist me-1"></i>Manage Block Lists
+              </a>
+            </div>
+          </div>
+        </div>
+
+      {% elif total_count == 0 %}
+        <!-- Search Results Empty State -->
+        <div class="card border-0 shadow-sm text-center py-5 my-3">
+          <div class="card-body">
+            <i class="bi bi-search display-5 d-block mb-3 text-secondary"></i>
+            <h5>No matching blocked URLs</h5>
+            <p class="text-secondary small mb-4">
+              No blocked patterns matched <code>{{ query }}</code>.
+            </p>
+            <a href="{{ url_for('rules.blocked_urls_view') }}" class="btn btn-outline-primary btn-sm rounded-pill px-4">
+              <i class="bi bi-arrow-left me-1"></i>Show All Blocked URLs
+            </a>
+          </div>
+        </div>
+
+      {% else %}
+
+        <!-- Batch Delete Form Wrapping Table -->
+        <form id="batch-delete-form" method="POST" action="{{ url_for('rules.blocked_urls_batch_delete') }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+
+          <!-- Toolbar -->
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
+            <div class="text-secondary small d-flex align-items-center gap-2 flex-wrap">
+              {% if query %}
+                <span>Found <strong>{{ "{:,}".format(total_count) }}</strong> matching pattern{{ 's' if total_count != 1 }} for <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ query }}</span></span>
+              {% else %}
+                <span>Showing <strong>{{ "{:,}".format(entries|length) }}</strong> of <strong>{{ "{:,}".format(total_count) }}</strong> blocked URLs</span>
+              {% endif %}
+              {% if total_pages > 1 %}
+                <span class="text-muted">&middot; Page {{ page }} of {{ total_pages }}</span>
+              {% endif %}
+            </div>
+
+            <!-- Batch Selection Controls -->
+            <div class="d-flex align-items-center gap-2">
+              <div class="form-check m-0">
+                <input class="form-check-input" type="checkbox" id="select-all-blocked" title="Select all on this page">
+                <label class="form-check-label small text-secondary" for="select-all-blocked">Select Page</label>
+              </div>
+
+              <button type="button"
+                      class="btn btn-outline-danger btn-sm rounded-pill"
+                      id="btn-delete-selected"
+                      disabled>
+                <i class="bi bi-trash me-1"></i>Delete (<span id="selected-count">0</span>)
+              </button>
+            </div>
+          </div>
+
+          <!-- Entries Table -->
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light small">
+                  <tr>
+                    <th style="width: 40px;" class="text-center"></th>
+                    <th style="width: 80px;" class="text-center">#</th>
+                    <th>URL / Domain / Pattern</th>
+                    <th style="width: 140px;" class="text-center">Origin</th>
+                    <th style="width: 100px;" class="text-center">Operations</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for b in entries %}
+                    <tr id="blocked-row-{{ b.id }}">
+                      <td class="text-center">
+                        <input type="checkbox"
+                               name="selected_ids"
+                               value="{{ b.id }}"
+                               class="form-check-input blocked-row-checkbox"
+                               aria-label="Select URL {{ b.url }}">
+                      </td>
+                      <td class="text-center text-muted small">{{ b.id }}</td>
+                      <td>
+                        <code class="text-danger fw-semibold text-break">{{ b.url }}</code>
+                      </td>
+                      <td class="text-center">
+                        {% if b.block_list_id %}
+                          <a href="{{ url_for('rules.block_lists_view') }}" class="badge bg-secondary-subtle text-secondary-emphasis border text-decoration-none" title="From Block List #{{ b.block_list_id }}">
+                            <i class="bi bi-card-checklist me-1"></i>List #{{ b.block_list_id }}
+                          </a>
+                        {% else %}
+                          <span class="badge bg-light text-muted border">Manual</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-center">
+                        <button type="button"
+                                class="btn btn-outline-danger btn-sm single-delete-btn"
+                                data-entry-id="{{ b.id }}"
+                                data-entry-url="{{ b.url }}"
+                                title="Delete blocked URL">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </form>
+
+        <!-- Pagination Controls -->
+        {% if total_pages > 1 %}
+          <nav class="d-flex justify-content-center mt-3 mb-5" aria-label="Blocked URLs pagination">
+            <ul class="pagination pagination-sm flex-wrap justify-content-center">
+              <!-- Previous Button -->
+              <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('rules.blocked_urls_view', q=query if query else None, order=order, page=page - 1) }}" aria-label="Previous">
+                  &laquo; Prev
+                </a>
+              </li>
+
+              <!-- Page Window -->
+              {% set start_p = [1, page - 2]|max %}
+              {% set end_p = [total_pages, start_p + 4]|min %}
+              {% if end_p - start_p < 4 %}
+                {% set start_p = [1, end_p - 4]|max %}
+              {% endif %}
+
+              {% for p in range(start_p, end_p + 1) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                  <a class="page-link" href="{{ url_for('rules.blocked_urls_view', q=query if query else None, order=order, page=p) }}">
+                    {{ p }}
+                  </a>
+                </li>
+              {% endfor %}
+
+              <!-- Next Button -->
+              <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('rules.blocked_urls_view', q=query if query else None, order=order, page=page + 1) }}" aria-label="Next">
+                  Next &raquo;
+                </a>
+              </li>
+            </ul>
+          </nav>
+        {% endif %}
+
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Block URL -->
+<div class="modal fade" id="blockUrlModal" tabindex="-1" aria-labelledby="blockUrlModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <form method="POST" action="{{ url_for('rules.block_url_add') }}">
+        <input type="hidden" name="next" value="{{ request.full_path }}">
+        <div class="modal-header">
+          <h5 class="modal-title d-flex align-items-center gap-2 text-danger" id="blockUrlModalLabel">
+            <i class="bi bi-slash-circle"></i>
+            <span>Block URL / Domain</span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-secondary small mb-3">
+            Add a domain, URL, or substring pattern to block. If this pattern matches any part of an entry link or source URL, the entry will not be built and matching sources will be removed.
+          </p>
+          <div class="mb-3">
+            <label for="block_url_input" class="form-label fw-semibold small">URL or Pattern to Block <span class="text-danger">*</span></label>
+            <input type="text"
+                   class="form-control"
+                   id="block_url_input"
+                   name="url"
+                   placeholder="e.g. tracker.com, badsite.org, or &ad_token="
+                   required
+                   maxlength="1000"
+                   autofocus>
+            <div class="form-text small">
+              Matches any part of candidate URLs (case-insensitive substring match).
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4">
+            <i class="bi bi-slash-circle me-1"></i>Block URL
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirm Delete Single Block Entry -->
+<div class="modal fade" id="singleDeleteModal" tabindex="-1" aria-labelledby="singleDeleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger d-flex align-items-center gap-2" id="singleDeleteModalLabel">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>Remove Blocked URL</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="single-delete-text">
+          Are you sure you want to remove this blocked URL pattern?
+        </p>
+        <div class="alert alert-warning small mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          This pattern will no longer block incoming candidate links.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancel</button>
+        <form id="single-delete-form" method="POST" action="">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4">
+            <i class="bi bi-trash me-1"></i>Delete
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirm Batch Delete -->
+<div class="modal fade" id="batchDeleteModal" tabindex="-1" aria-labelledby="batchDeleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger d-flex align-items-center gap-2" id="batchDeleteModalLabel">
+          <i class="bi bi-trash-fill"></i>
+          <span>Delete Selected Blocked URLs</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="batch-delete-text">
+          Are you sure you want to delete the selected blocked URLs?
+        </p>
+        <div class="alert alert-warning small mb-0">
+          <i class="bi bi-info-circle me-1"></i>
+          These patterns will no longer be blocked.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm rounded-pill" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm rounded-pill px-4" id="btn-confirm-batch-delete">
+          <i class="bi bi-trash me-1"></i>Delete Selected
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  "use strict";
+
+  const selectAll = document.getElementById("select-all-blocked");
+  const rowCheckboxes = document.querySelectorAll(".blocked-row-checkbox");
+  const deleteSelectedBtn = document.getElementById("btn-delete-selected");
+  const selectedCountSpan = document.getElementById("selected-count");
+  const batchForm = document.getElementById("batch-delete-form");
+  const batchDeleteModalEl = document.getElementById("batchDeleteModal");
+  const batchDeleteModal = batchDeleteModalEl ? new bootstrap.Modal(batchDeleteModalEl) : null;
+  const btnConfirmBatchDelete = document.getElementById("btn-confirm-batch-delete");
+
+  function updateSelectionState() {
+    const checked = document.querySelectorAll(".blocked-row-checkbox:checked");
+    const count = checked.length;
+    if (selectedCountSpan) selectedCountSpan.textContent = count;
+    if (deleteSelectedBtn) {
+      deleteSelectedBtn.disabled = (count === 0);
+    }
+    if (selectAll) {
+      selectAll.checked = (rowCheckboxes.length > 0 && count === rowCheckboxes.length);
+      selectAll.indeterminate = (count > 0 && count < rowCheckboxes.length);
+    }
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener("change", function () {
+      rowCheckboxes.forEach(cb => cb.checked = selectAll.checked);
+      updateSelectionState();
+    });
+  }
+
+  rowCheckboxes.forEach(cb => {
+    cb.addEventListener("change", updateSelectionState);
+  });
+
+  // Single delete modal trigger
+  const singleDeleteModalEl = document.getElementById("singleDeleteModal");
+  const singleDeleteModal = singleDeleteModalEl ? new bootstrap.Modal(singleDeleteModalEl) : null;
+  const singleDeleteForm = document.getElementById("single-delete-form");
+  const singleDeleteText = document.getElementById("single-delete-text");
+
+  document.querySelectorAll(".single-delete-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const entryId = btn.getAttribute("data-entry-id");
+      const entryUrl = btn.getAttribute("data-entry-url") || `#${entryId}`;
+      if (singleDeleteForm) {
+        singleDeleteForm.action = `/rules/block-entry/${entryId}/delete`;
+      }
+      if (singleDeleteText) {
+        singleDeleteText.textContent = `Are you sure you want to remove blocked URL pattern: "${entryUrl}"?`;
+      }
+      if (singleDeleteModal) {
+        singleDeleteModal.show();
+      }
+    });
+  });
+
+  // Batch delete modal trigger
+  if (deleteSelectedBtn) {
+    deleteSelectedBtn.addEventListener("click", function () {
+      const selected = document.querySelectorAll(".blocked-row-checkbox:checked");
+      if (selected.length === 0) return;
+      const batchDeleteText = document.getElementById("batch-delete-text");
+      if (batchDeleteText) {
+        batchDeleteText.textContent = `Are you sure you want to delete ${selected.length} selected blocked URL pattern(s)?`;
+      }
+      if (batchDeleteModal) {
+        batchDeleteModal.show();
+      }
+    });
+  }
+
+  if (btnConfirmBatchDelete && batchForm) {
+    btnConfirmBatchDelete.addEventListener("click", function () {
+      batchForm.submit();
+    });
+  }
+
+  updateSelectionState();
+});
+</script>
+{% endblock %}

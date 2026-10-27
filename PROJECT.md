@@ -415,7 +415,7 @@ The screen displays, where available:
  - you can use fields: trigger_rule_url, rule_name, enabled, priority, block, trust, auto_tag, apply_age_limit, source_id. Other fields do not have to be used right now
  - trigger_rule_url supports re syntax ".*reddit.com.*" should work
  - multiple rules can be defined in a single rule, eg. ".*reddit.com.*, .*github.com.*"
- - Block entries are not displayed directly as a monolithic table in EntryRulesScreen to ensure fast rendering when handling thousands of entries. Instead, a "Block Entries" button with a badge count navigates to BlockEntriesScreen with search and pagination controls.
+ - Block entries are not displayed directly as a monolithic table in EntryRulesScreen to ensure fast rendering when handling thousands of entries. Instead, a "Blocked Urls" button with a badge count navigates to BlockEntriesScreen with search and pagination controls.
 
 ## BlockEntriesScreen
  - Displays BlockEntry items (blocked URLs, domains, and patterns) with server-side pagination and search.

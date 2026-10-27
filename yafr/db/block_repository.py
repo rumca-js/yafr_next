@@ -517,6 +517,21 @@ class BlockEntryRepository(BaseRepository[BlockEntry]):
         self.commit()
         return True
 
+    def delete_entries(self, entry_ids: Iterable[int]) -> int:
+        """
+        Deletes multiple BlockEntry records by ID.
+
+        :param entry_ids: Iterable of primary key IDs
+        :return: Count of deleted entries
+        """
+        ids = [int(i) for i in entry_ids if i is not None]
+        if not ids:
+            return 0
+        stmt = delete(BlockEntry).where(BlockEntry.id.in_(ids))
+        res = self.session.execute(stmt)
+        self.commit()
+        return max(0, res.rowcount)
+
     def delete_by_list_id(self, block_list_id: int) -> int:
         """
         Deletes all BlockEntry records belonging to a given BlockEntryList ID.
@@ -667,6 +682,9 @@ class BlockRepository(BaseRepository[BlockEntryList]):
 
     def delete_entry(self, entry_id: int) -> bool:
         return self.entry_repo.delete_entry(entry_id)
+
+    def delete_entries(self, entry_ids: Iterable[int]) -> int:
+        return self.entry_repo.delete_entries(entry_ids)
 
     def delete_entries_by_list(self, block_list_id: int) -> int:
         return self.entry_repo.delete_by_list_id(block_list_id)

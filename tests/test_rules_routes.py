@@ -37,14 +37,54 @@ class TestRulesRoutes(unittest.TestCase):
         close_session()
 
     def test_rules_list_contains_add_rule_and_block_url_buttons(self):
-        """GET /rules renders the page with 'Add Rule', 'Block Url', and 'Block Lists' buttons."""
+        """GET /rules renders the page with 'Add Rule', 'Block Url', 'Blocked Urls', and 'Block Lists' buttons."""
         response = self.client.get("/rules")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("Add Rule", html)
         self.assertIn("Block Url", html)
+        self.assertIn("Blocked Urls", html)
         self.assertIn("Block Lists", html)
         self.assertIn("blockUrlModal", html)
+        self.assertIn("/rules/blocked-urls", html)
+
+    def test_get_blocked_urls_view_renders_entries_and_search(self):
+        """GET /rules/blocked-urls renders Blocked URLs view with pagination and search."""
+        self.block_repo.add_entry("test-ad-1.com")
+        self.block_repo.add_entry("tracker-xyz.net")
+
+        # View all
+        res = self.client.get("/rules/blocked-urls")
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+        self.assertIn("Blocked URLs", html)
+        self.assertIn("test-ad-1.com", html)
+        self.assertIn("tracker-xyz.net", html)
+
+        # Search query
+        res_search = self.client.get("/rules/blocked-urls?q=tracker")
+        self.assertEqual(res_search.status_code, 200)
+        html_search = res_search.get_data(as_text=True)
+        self.assertIn("tracker-xyz.net", html_search)
+        self.assertNotIn("test-ad-1.com", html_search)
+
+    def test_post_batch_delete_blocked_urls(self):
+        """POST /rules/blocked-urls/batch-delete deletes selected BlockEntry items."""
+        e1 = self.block_repo.add_entry("badsite1.com")
+        e2 = self.block_repo.add_entry("badsite2.com")
+        e3 = self.block_repo.add_entry("safe-remains.com")
+
+        res = self.client.post(
+            "/rules/blocked-urls/batch-delete",
+            data={"selected_ids": [str(e1.id), str(e2.id)]},
+            follow_redirects=True,
+        )
+        self.assertEqual(res.status_code, 200)
+        html = res.get_data(as_text=True)
+        self.assertIn("removed 2", html.lower())
+        self.assertIsNone(self.block_repo.get_entry(e1.id))
+        self.assertIsNone(self.block_repo.get_entry(e2.id))
+        self.assertIsNotNone(self.block_repo.get_entry(e3.id))
 
     def test_get_block_lists_view_renders_lists_and_status(self):
         """GET /rules/block-lists renders blockentrylists with processed and not processed badges."""

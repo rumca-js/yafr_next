@@ -5,6 +5,7 @@ Implements EntryRulesScreen: listing, creating, editing, toggling,
 and deleting URL-based processing rules stored in the entryrules table.
 """
 
+import math
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from yafr.db import (
     BlockEntryListRepository,
@@ -20,7 +21,7 @@ rules_bp = Blueprint("rules", __name__)
 @rules_bp.route("/rules")
 def rules_list():
     """
-    Renders EntryRulesScreen — a full list of all configured entry rules and blocked URLs.
+    Renders EntryRulesScreen — a full list of all configured entry rules.
 
     Rules are displayed ordered by priority (ascending), then ID.
     """
@@ -28,15 +29,86 @@ def rules_list():
     repo = RulesRepository(session)
     rules = repo.list_rules()
     block_repo = BlockEntryRepository(session)
-    block_entries = block_repo.list_entries(order_by="id", limit=500)
+    blocked_urls_count = block_repo.count_entries()
     list_repo = BlockEntryListRepository(session)
     block_lists_count = list_repo.count_lists()
     return render_template(
         "rules/list.html",
         rules=rules,
-        block_entries=block_entries,
+        blocked_urls_count=blocked_urls_count,
         block_lists_count=block_lists_count,
     )
+
+
+@rules_bp.route("/rules/block-entries")
+@rules_bp.route("/rules/blocked-urls")
+def blocked_urls_view():
+    """
+    Renders the Blocked URLs (BlockEntry items) screen.
+
+    Displays BlockEntry items (blocked URLs, domains, and patterns)
+    with server-side pagination, search, and per-entry deletion.
+    """
+    query = request.args.get("q", "").strip()
+    order = request.args.get("order", "id")
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = 50
+    offset = (page - 1) * per_page
+
+    session = get_session()
+    block_repo = BlockEntryRepository(session)
+    list_repo = BlockEntryListRepository(session)
+
+    total_count = block_repo.count_entries(search=query if query else None)
+    total_all_count = block_repo.count_entries()
+    block_lists_count = list_repo.count_lists()
+
+    entries = block_repo.list_entries(
+        search=query if query else None,
+        order_by=order,
+        limit=per_page,
+        offset=offset,
+    )
+    total_pages = max(1, math.ceil(total_count / per_page)) if total_count > 0 else 1
+
+    return render_template(
+        "rules/blocked_urls.html",
+        entries=entries,
+        query=query,
+        order=order,
+        page=page,
+        per_page=per_page,
+        total_count=total_count,
+        total_all_count=total_all_count,
+        total_pages=total_pages,
+        block_lists_count=block_lists_count,
+    )
+
+
+@rules_bp.route("/rules/blocked-urls/batch-delete", methods=["POST"])
+def blocked_urls_batch_delete():
+    """
+    Batch-deletes multiple BlockEntry records selected via checkboxes in the UI.
+    """
+    raw_ids = request.form.getlist("selected_ids")
+    if not raw_ids:
+        flash("No blocked URLs selected for deletion.", "warning")
+        return redirect(url_for("rules.blocked_urls_view"))
+
+    try:
+        ids = [int(i) for i in raw_ids if str(i).strip().isdigit()]
+    except Exception:
+        ids = []
+
+    if not ids:
+        flash("Invalid selection.", "warning")
+        return redirect(url_for("rules.blocked_urls_view"))
+
+    session = get_session()
+    block_repo = BlockEntryRepository(session)
+    count = block_repo.delete_entries(ids)
+    flash(f"Successfully removed {count} blocked URL(s).", "success")
+    return redirect(url_for("rules.blocked_urls_view"))
 
 
 @rules_bp.route("/rules/block-lists")
@@ -150,9 +222,10 @@ def block_url_add():
     """
     if request.method == "POST":
         raw_url = request.form.get("url", "").strip()
+        next_url = request.form.get("next") or request.referrer
         if not raw_url:
             flash("URL or pattern cannot be empty.", "warning")
-            return redirect(url_for("rules.rules_list"))
+            return redirect(next_url or url_for("rules.blocked_urls_view"))
 
         session = get_session()
         block_repo = BlockEntryRepository(session)
@@ -161,7 +234,7 @@ def block_url_add():
             flash(f"Blocked URL '{entry.url}' added successfully.", "success")
         except Exception as exc:
             flash(f"Failed to add block entry: {exc}", "danger")
-        return redirect(url_for("rules.rules_list"))
+        return redirect(next_url or url_for("rules.blocked_urls_view"))
 
     return render_template(
         "rules/block_url.html",
@@ -172,8 +245,9 @@ def block_url_add():
 @rules_bp.route("/rules/block-entry/<int:id>/delete", methods=["POST"])
 def block_entry_delete(id: int):
     """
-    Deletes a single BlockEntry by primary key ID and redirects back to EntryRulesScreen.
+    Deletes a single BlockEntry by primary key ID and redirects back to Blocked URLs view.
     """
+    next_url = request.form.get("next") or request.referrer or url_for("rules.blocked_urls_view")
     session = get_session()
     block_repo = BlockEntryRepository(session)
     deleted = block_repo.delete_entry(id)
@@ -181,7 +255,7 @@ def block_entry_delete(id: int):
         flash("Blocked URL removed.", "success")
     else:
         flash("Block entry not found.", "warning")
-    return redirect(url_for("rules.rules_list"))
+    return redirect(next_url)
 
 
 @rules_bp.route("/rules/add", methods=["GET", "POST"])
