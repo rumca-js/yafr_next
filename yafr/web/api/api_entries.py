@@ -231,8 +231,7 @@ def update_social_data(entry_id: int):
     if not entry:
         return api_response(success=False, error="Entry not found", status_code=404)
 
-    from yafr.workers.jobs.link_jobs import JOB_LINK_DOWNLOAD_SOCIAL
-    from yafr.services.job_service import JobService
+    from yafr.services.job_service import JOB_LINK_DOWNLOAD_SOCIAL, JobService
 
     job = JobService.create_job(
         job=JOB_LINK_DOWNLOAD_SOCIAL,

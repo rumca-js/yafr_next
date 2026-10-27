@@ -173,7 +173,7 @@ class TestApiEntries(unittest.TestCase):
         self.assertIn("job_id", data)
 
         from linkarchivetools.model.definitions import BackgroundJob
-        from yafr.workers.jobs.link_jobs import JOB_LINK_DOWNLOAD_SOCIAL
+        from yafr.services.job_service import JOB_LINK_DOWNLOAD_SOCIAL
 
         job = self.session.get(BackgroundJob, data["job_id"])
         self.assertIsNotNone(job)
@@ -192,7 +192,10 @@ class TestApiEntries(unittest.TestCase):
 
         # Enqueue an active job
         from linkarchivetools.model.definitions import BackgroundJob, BackgroundJobHistory
-        from yafr.workers.jobs.link_jobs import JOB_LINK_UPDATE_DATA, JOB_LINK_DOWNLOAD_SOCIAL
+        from yafr.services.job_service import (
+            JOB_LINK_DOWNLOAD_SOCIAL,
+            JOB_LINK_UPDATE_DATA,
+        )
 
         active_job = BackgroundJob(
             job=JOB_LINK_UPDATE_DATA,

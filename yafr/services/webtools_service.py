@@ -23,9 +23,6 @@ warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 logger = logging.getLogger(__name__)
 
-# Standard background job identifier for link metadata update
-JOB_LINK_UPDATE_DATA = "link-update-data"
-
 
 class WebToolsWrapper:
     """

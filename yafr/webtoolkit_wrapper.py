@@ -6,7 +6,6 @@ yafr.services.webtools_service.
 """
 
 from yafr.services.webtools_service import (
-    JOB_LINK_UPDATE_DATA,
     WebToolkitWrapper,
     WebToolsService,
     WebToolsWrapper,
@@ -22,7 +21,6 @@ from yafr.services.webtools_service import (
 )
 
 __all__ = [
-    "JOB_LINK_UPDATE_DATA",
     "WebToolsWrapper",
     "WebToolkitWrapper",
     "WebToolsService",

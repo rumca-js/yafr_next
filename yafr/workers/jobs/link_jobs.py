@@ -13,13 +13,14 @@ from linkarchivetools.model.definitions import BackgroundJob, LinkDataModel
 from webtoolkit import UrlLocation
 
 from yafr.db.entry_repository import EntryRepository
+from yafr.services.job_service import (
+    JOB_LINK_DOWNLOAD_SOCIAL,
+    JOB_LINK_UPDATE_DATA,
+)
 from yafr.services.webtools_service import WebToolsWrapper
 from yafr.workers.jobs.base import BaseJobHandler
 
 logger = logging.getLogger(__name__)
-
-JOB_LINK_UPDATE_DATA = "link-update-data"
-JOB_LINK_DOWNLOAD_SOCIAL = "link-download-social"
 
 
 class LinkUpdateDataJobHandler(BaseJobHandler):

@@ -27,11 +27,9 @@ from yafr.db.block_repository import BlockEntryRepository
 from yafr.db.config_repository import ConfigRepository
 from yafr.db.rules_repository import RulesRepository
 from yafr.db.session import get_session
+from yafr.services.job_service import JOB_LINK_UPDATE_DATA
 
 logger = logging.getLogger(__name__)
-
-# Standard background job identifier for link metadata update
-JOB_LINK_UPDATE_DATA = "link-update-data"
 
 
 class EntryBuilder:
