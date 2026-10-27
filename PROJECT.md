@@ -343,7 +343,7 @@ The screen displays, where available:
  - Provides input fields for entry metadata (URL, title, description, tags, author, etc.).
 
 ## SourcesListScreen
- - if user did not input anything the input text should be quite big, and in the middle. If user enters anything the search should be above
+ - small search box at top with results list displayed by default (no big search box)
  - Provides buttons
     - add - prompts user to select source type (SOURCE_TYPE_RSS or SOURCE_TYPE_EMAIL)
     - fetch - visible when any sources is outdated or has consecutive errors and can be refreshed. Prompts user if sources with errors should be refetched

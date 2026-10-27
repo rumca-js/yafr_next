@@ -82,14 +82,17 @@ class TestSourceRoutes(unittest.TestCase):
         close_session()
 
     def test_sources_list_empty_query(self):
-        """GET /sources without query renders large centered search input."""
+        """GET /sources without query renders compact search bar and displays all sources."""
         response = self.client.get("/sources")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("main-source-search-input", html)
+        self.assertIn("top-source-search-input", html)
         self.assertIn("Search sources", html)
         self.assertIn("Add Source", html)
-        self.assertIn("Browse All Sources", html)
+        self.assertIn("Hacker News", html)
+        self.assertIn("Linux Weekly News", html)
+        self.assertNotIn("main-source-search-input", html)
+        self.assertNotIn("Browse All Sources", html)
 
     def test_sources_list_search_no_input_returns_all_data(self):
         """GET /sources?q= (source search with no input) returns all sources."""

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}
-  {% if has_query and query %}
+  {% if query %}
     {{ query }} - {{ app_name }} Sources
   {% else %}
     {{ app_name }} - Sources
@@ -50,9 +50,8 @@
     {% endif %}
   {% endwith %}
 
-  <!-- Results Container (Shown when a query or list view is active) -->
-  {% if has_query %}
-    <div class="row justify-content-center">
+  <!-- Results Container -->
+  <div class="row justify-content-center">
       <div class="col-12 col-xl-10">
 
         <!-- Linear Progress Bar for Background Source Refresh Worker -->
@@ -181,7 +180,6 @@
 
       </div>
     </div>
-  {% endif %}
   {% endif %}
 
 </div>

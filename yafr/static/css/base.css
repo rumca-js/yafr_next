@@ -63,7 +63,8 @@ code {
   margin-right: auto;
 }
 
-#main-source-search-input:focus {
+#main-source-search-input:focus,
+#top-source-search-input:focus {
   outline: none;
   box-shadow: none;
 }

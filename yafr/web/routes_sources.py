@@ -30,22 +30,13 @@ def sources_list():
     """
     Renders SourcesListView.
 
-    - If query parameter 'q' is empty and 'all' is not set:
-      displays a prominent centered search input in the middle.
-    - If 'q' or 'all' is present:
-      displays search widget at top with sources list, badges, and controls.
+    Displays compact search bar at top with sources list, badges, and controls.
     """
     query = request.args.get("q", "").strip()
     active_filter = request.args.get("order", "url")
     show_all = request.args.get("all") == "1"
     page = max(1, request.args.get("page", 1, type=int))
-    has_query = (
-        ("q" in request.args)
-        or show_all
-        or ("page" in request.args)
-        or ("order" in request.args)
-        or bool(query)
-    )
+    has_query = bool(query)
 
     session = get_session()
     config_repo = ConfigRepository(session)
@@ -56,18 +47,14 @@ def sources_list():
     per_page = int(config.sources_per_page or 25)
     offset = (page - 1) * per_page
 
-    sources_with_op = []
-    total_results = 0
-
-    if has_query:
-        parsed_query = SearchParser.parse(query)
-        sources_with_op, total_results = SourceSearchQueryBuilder.execute_search(
-            session=session,
-            parsed_query=parsed_query,
-            filter_id=active_filter,
-            limit=per_page,
-            offset=offset,
-        )
+    parsed_query = SearchParser.parse(query)
+    sources_with_op, total_results = SourceSearchQueryBuilder.execute_search(
+        session=session,
+        parsed_query=parsed_query,
+        filter_id=active_filter,
+        limit=per_page,
+        offset=offset,
+    )
 
     total_pages = (
         max(1, math.ceil(total_results / per_page)) if total_results > 0 else 1
