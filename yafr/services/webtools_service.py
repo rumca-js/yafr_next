@@ -40,6 +40,8 @@ class WebToolsWrapper:
      - get_response()
      - get_entries()
      - get_content_links()
+     - get_hash()
+     - get_body_hash()
     """
 
     def __init__(
@@ -460,6 +462,45 @@ class WebToolsWrapper:
             except Exception as exc:
                 logger.debug("url_handler.get_tags() failed: %s", exc)
         return []
+
+    def get_hash(self):
+        """
+        Retrieves album from handler if available.
+        Does not fall back to response object or BeautifulSoup HTML parsing.
+        """
+        self.get_response()
+        if self.url_handler:
+            try:
+                return self.url_handler.get_hash()
+            except Exception as exc:
+                logger.debug("url_handler.get_hash() failed: %s", exc)
+        return None
+
+    def get_body_hash(self):
+        """
+        Retrieves album from handler if available.
+        Does not fall back to response object or BeautifulSoup HTML parsing.
+        """
+        self.get_response()
+        if self.url_handler:
+            try:
+                return self.url_handler.get_body_hash()
+            except Exception as exc:
+                logger.debug("url_handler.get_body_hash() failed: %s", exc)
+        return None
+
+    def get_meta_hash(self):
+        """
+        Retrieves album from handler if available.
+        Does not fall back to response object or BeautifulSoup HTML parsing.
+        """
+        self.get_response()
+        if self.url_handler:
+            try:
+                return self.url_handler.get_meta_hash()
+            except Exception as exc:
+                logger.debug("url_handler.get_meta_hash() failed: %s", exc)
+        return None
 
     def get_canonical_url(self) -> Optional[str]:
         """

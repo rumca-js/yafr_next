@@ -735,9 +735,8 @@ class ParseSourceExtractor:
             )
             return FetchExtractionResult(error=f"Network download error: {err}")
 
-        # Calculate hashes
-        page_hash = hashlib.sha256(content_bytes).digest()
-        body_hash = page_hash
+        page_hash = web_client.get_hash()
+        body_hash = web_client.get_body_hash()
 
         # Check for operational hash equality
         if op_data.page_hash and op_data.page_hash == page_hash:
@@ -747,7 +746,6 @@ class ParseSourceExtractor:
                 is_unchanged=True,
             )
 
-        # Parse RSS / Feed entries
         try:
             links = web_client.get_content_links()
             raw_entries = []
@@ -756,6 +754,7 @@ class ParseSourceExtractor:
                 if builder.can_build(url=link):
                     raw_entries.append({"link": link})
                     # TODO add background job to update link
+
         except Exception as err:
             logger.warning("Error parsing RSS feed for source %s: %s", source.id, err)
             return FetchExtractionResult(error=f"Feed parsing error: {err}")
