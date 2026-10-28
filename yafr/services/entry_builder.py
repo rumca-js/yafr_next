@@ -492,7 +492,7 @@ class EntryBuilder:
 
         source_tags: List[str] = []
         if source and source.auto_tag:
-            for t in re.split(r"[,\s]+", source.auto_tag):
+            for t in re.split(r"[,]+", source.auto_tag):
                 clean_t = t.strip().lstrip("#")
                 if clean_t:
                     source_tags.append(clean_t)

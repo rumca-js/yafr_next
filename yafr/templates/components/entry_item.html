@@ -19,7 +19,7 @@
 {# 1. GALLERY LAYOUT (YouTube / TikTok style visual grid)                    #}
 {# ======================================================================== #}
 {% if display_type == 'gallery' %}
-<div class="gallery-card border shadow-sm entry-card-clickable {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}" data-detail-url="{{ url_for('entries.entry_detail_view', id=entry.id) }}">
+<div class="gallery-card border shadow-sm entry-card-clickable {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}" data-detail-url="{{ url_for('entries.entry_detail_view', id=entry.id) }}" title="{{entry.title}}">
   <div class="gallery-thumb-wrap">
     {% if entry.thumbnail %}
       <img src="{{ entry.thumbnail }}" alt="{{ entry.title or 'Thumbnail' }}" class="gallery-thumb" loading="lazy">
@@ -92,7 +92,7 @@
         {% endif %}
         <div>
           {% if entry.date_published %}
-            <i class="bi bi-calendar3 me-1"></i>{{ entry.date_published.strftime('%b %d, %Y') }}
+            <i class="bi bi-calendar3 me-1"></i>{{ entry.date_published.strftime('%Y-%m-%d %H:%M') }}
           {% endif %}
         </div>
       </div>
@@ -126,7 +126,7 @@
 {# 2. STANDARD LAYOUT (Feed Reader style: Left Thumb, Right Content)         #}
 {# ======================================================================== #}
 {% elif display_type == 'standard' %}
-<div class="card standard-card border shadow-sm p-3 entry-card-clickable {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}" data-detail-url="{{ url_for('entries.entry_detail_view', id=entry.id) }}">
+<div class="card standard-card border shadow-sm p-3 entry-card-clickable {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}" data-detail-url="{{ url_for('entries.entry_detail_view', id=entry.id) }}" title="{{entry.title}}">
   <div class="d-flex flex-column flex-sm-row gap-3">
     {% if entry.thumbnail %}
       <div class="standard-thumb-col flex-shrink-0">
@@ -172,7 +172,7 @@
             <span>&middot;</span>
           {% endif %}
           {% if entry.date_published %}
-            <span><i class="bi bi-calendar3 me-1"></i>{{ entry.date_published.strftime('%b %d, %Y') }}</span>
+            <span><i class="bi bi-calendar3 me-1"></i>{{ entry.date_published.strftime('%Y-%m-%d %H:%M') }}</span>
           {% endif %}
           {% if entry.language %}
             <span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ entry.language }}</span>
@@ -232,7 +232,7 @@
 {# 3. SEARCH ENGINE LAYOUT (Google / DuckDuckGo style)                       #}
 {# ======================================================================== #}
 {% elif display_type == 'search-engine' %}
-<div class="search-engine-item entry-card-clickable {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}" data-detail-url="{{ url_for('entries.entry_detail_view', id=entry.id) }}">
+<div class="search-engine-item entry-card-clickable {{ class_str }}" id="entry-card-{{ entry.id }}" data-entry-id="{{ entry.id }}" data-detail-url="{{ url_for('entries.entry_detail_view', id=entry.id) }}" title="{{entry.title}}">
   <div class="search-engine-breadcrumb">
     {% if source_obj and source_obj.favicon %}
       <img src="{{ source_obj.favicon }}" alt="" width="16" height="16" class="rounded-circle">
@@ -256,13 +256,9 @@
     </a>
   </h5>
 
-  {% if entry.description %}
-    <p class="search-engine-snippet">{{ entry.description }}</p>
-  {% endif %}
-
   <div class="search-engine-footer text-secondary">
     {% if entry.date_published %}
-      <span>{{ entry.date_published.strftime('%b %d, %Y') }}</span>
+      <span>{{ entry.date_published.strftime('%Y-%m-%d %H:%M') }}</span>
       <span>&middot;</span>
     {% endif %}
     {% if entry.language %}
@@ -320,7 +316,7 @@
       <span>Posted by {{ entry.author or 'Anonymous' }}</span>
       {% if entry.date_published %}
         <span>&bull;</span>
-        <span>{{ entry.date_published.strftime('%b %d, %Y') }}</span>
+        <span>{{ entry.date_published.strftime('%Y-%m-%d %H:%M') }}</span>
       {% endif %}
       {% if is_dead %}
         <span class="badge bg-danger ms-1"><i class="bi bi-skull me-1"></i>Dead</span>
@@ -418,7 +414,7 @@
     {% endif %}
   </td>
   <td class="text-secondary small text-nowrap">
-    {{ entry.date_published.strftime('%Y-%m-%d') if entry.date_published else '-' }}
+    {{ entry.date_published.strftime('%Y-%m-%d %H:%M') if entry.date_published else '-' }}
   </td>
   <td class="text-center font-monospace small">
     <span class="score-badge" data-id="{{ entry.id }}">{{ entry.page_rating_votes or 0 }}</span>
