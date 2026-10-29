@@ -7,6 +7,161 @@
 
 $(document).ready(function () {
 
+  // -------------------------------------------------------------------------
+  // Search History & Autocomplete
+  // -------------------------------------------------------------------------
+
+  /** Minimum characters before autocomplete suggestions fire on keyup. */
+  var AUTOCOMPLETE_MIN_CHARS = 1;
+
+  /** Debounce timer for autocomplete keyup. */
+  var _autocompleteTimer = null;
+
+  /**
+   * Populates and shows a search-history dropdown with the given suggestions.
+   *
+   * @param {jQuery} dropdown - The .search-history-dropdown element
+   * @param {string[]} suggestions - Array of query strings
+   * @param {string} headerText - Header label for the dropdown
+   */
+  function _renderSuggestions(dropdown, suggestions, headerText) {
+    dropdown.empty();
+
+    if (!suggestions || suggestions.length === 0) {
+      dropdown.append(
+        '<div class="dropdown-item text-muted disabled"><i class="bi bi-info-circle me-2"></i>No search history</div>'
+      );
+    } else {
+      dropdown.append(
+        '<h6 class="dropdown-header"><i class="bi bi-clock-history me-1"></i>' + YafrUtils.escapeHtml(headerText) + '</h6>'
+      );
+      suggestions.forEach(function (query) {
+        var escaped = YafrUtils.escapeHtml(query);
+        dropdown.append(
+          '<button type="button" class="dropdown-item search-history-item" data-query="' + escaped + '">' +
+          '<i class="bi bi-search me-2 text-secondary"></i>' + escaped +
+          '</button>'
+        );
+      });
+    }
+
+    dropdown.addClass('show');
+  }
+
+  /**
+   * Clock button: shows ALL recent searches (no prefix filter).
+   */
+  $(document).on('click', '.search-history-btn', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var btn = $(this);
+    var inputSelector = btn.data('target');
+    var input = $(inputSelector);
+    var dropdown = input.closest('.position-relative').find('.search-history-dropdown');
+
+    // Toggle: if already visible, hide it
+    if (dropdown.hasClass('show')) {
+      dropdown.removeClass('show');
+      return;
+    }
+
+    // Hide any other open search history dropdowns
+    $('.search-history-dropdown.show').removeClass('show');
+
+    // Fetch ALL recent searches (no prefix)
+    $.ajax({
+      url: '/api/history/autocomplete',
+      type: 'GET',
+      data: {},
+      success: function (res) {
+        var items = (res.success && res.data && res.data.suggestions) ? res.data.suggestions : [];
+        _renderSuggestions(dropdown, items, 'Recent Searches');
+      },
+      error: function () {
+        dropdown.empty().append(
+          '<div class="dropdown-item text-muted disabled">Failed to load history</div>'
+        );
+        dropdown.addClass('show');
+      }
+    });
+  });
+
+  /**
+   * Autocomplete on keyup: shows suggestions filtered by the current input text.
+   */
+  $(document).on('input', '#main-search-input, #compact-search-input', function () {
+    var input = $(this);
+    var dropdown = input.closest('.position-relative').find('.search-history-dropdown');
+    var prefix = input.val().trim();
+
+    // Clear previous debounce
+    if (_autocompleteTimer) {
+      clearTimeout(_autocompleteTimer);
+    }
+
+    // Hide if input is too short
+    if (prefix.length < AUTOCOMPLETE_MIN_CHARS) {
+      dropdown.removeClass('show');
+      return;
+    }
+
+    // Debounce 250ms to avoid flooding the server
+    _autocompleteTimer = setTimeout(function () {
+      $.ajax({
+        url: '/api/history/autocomplete',
+        type: 'GET',
+        data: { q: prefix },
+        success: function (res) {
+          var items = (res.success && res.data && res.data.suggestions) ? res.data.suggestions : [];
+          if (items.length === 0) {
+            dropdown.removeClass('show');
+            return;
+          }
+          _renderSuggestions(dropdown, items, 'Suggestions');
+        },
+        error: function () {
+          dropdown.removeClass('show');
+        }
+      });
+    }, 250);
+  });
+
+  /**
+   * When a search history item is clicked, populate the search input and submit.
+   */
+  $(document).on('click', '.search-history-item', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var query = $(this).data('query');
+    var dropdown = $(this).closest('.search-history-dropdown');
+    var form = $(this).closest('form');
+
+    // If the dropdown is outside a form, find the nearest one
+    if (!form.length) {
+      form = dropdown.closest('.position-relative').find('input[name="q"]').closest('form');
+    }
+
+    var input = form.find('input[name="q"]');
+    input.val(query);
+    dropdown.removeClass('show');
+    form.submit();
+  });
+
+  /**
+   * Close search history dropdown when clicking elsewhere.
+   */
+  $(document).on('click', function (e) {
+    if (!$(e.target).closest('.search-history-btn, .search-history-dropdown, #main-search-input, #compact-search-input').length) {
+      $('.search-history-dropdown.show').removeClass('show');
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Entry List Interactions
+  // -------------------------------------------------------------------------
+
   // 0. Trigger Entry Detail View on Entry List Item Click
   $(document).on('click', '.entry-card-clickable, [data-detail-url]', function (e) {
     // If clicked on an interactive control (link, button, input), do not intercept

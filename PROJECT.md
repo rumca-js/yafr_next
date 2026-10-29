@@ -238,6 +238,8 @@ It should be indicated if there are problems with Sources, or Jobs, if there are
  - if user did not input anything the input text should be quite big, and in the middle. If user enters anything the search should be above
  - Provides search widget with text input
  - search history is stored in SearchHistory table, when user inputs search, this table data is used to help user select previous texts
+ - Search widget has a clock-history button that opens a dropdown of all recent searches from SearchHistory (unfiltered). Clicking an item fills the search input and submits the search
+ - As the user types in the search input, autocomplete suggestions are shown filtered by the current text (debounced, prefix match from SearchHistory)
  - Provides buttons: to add new entry, to mark all entries as read
  - Search widget has "Search" button and a button
  - provide "filters" selection to allow search only 'read later' entries
