@@ -124,6 +124,12 @@ DATABASE_TABLE_METADATA = [
         "description": "Blocked URLs, domains, and patterns extracted from blocklists",
         "icon": "bi-slash-circle",
     },
+    {
+        "table_name": "entrytransitionhistory",
+        "label": "Entry Transitions",
+        "description": "Directed navigation transitions between entries with frequency counters",
+        "icon": "bi-arrow-left-right",
+    },
 ]
 
 

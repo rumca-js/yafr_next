@@ -160,6 +160,19 @@ class HistoryRepository(BaseRepository[SearchHistory]):
         stmt = select(EntryVisitHistory.entry_id).where(EntryVisitHistory.visits > 0)
         return set(self.session.execute(stmt).scalars().all())
 
+    def get_last_visited_entry_id(self) -> Optional[int]:
+        """
+        Returns the entry ID of the most recently visited entry.
+
+        :return: Entry ID of the last visit, or None if no visits recorded
+        """
+        stmt = (
+            select(EntryVisitHistory.entry_id)
+            .order_by(EntryVisitHistory.date_last_visit.desc())
+            .limit(1)
+        )
+        return self.session.execute(stmt).scalar_one_or_none()
+
     def clear_visit_history(self) -> int:
         """
         Clears all visit history records.

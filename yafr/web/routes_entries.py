@@ -153,10 +153,9 @@ def entry_detail_view(id: int):
 
     config = config_repo.get_config()
 
-    # Record user visit
-    history_repo.record_visit(entry.id)
-
-    # Track navigation transition if coming from another entry
+    # Track navigation transition from the last visited entry before recording new visit.
+    # The from_entry_id query parameter takes precedence; otherwise we infer the
+    # transition from the most recent entry in EntryVisitHistory.
     from_entry_id = request.args.get("from_entry_id") or request.args.get("from")
     if from_entry_id:
         try:
@@ -165,6 +164,13 @@ def entry_detail_view(id: int):
                 history_repo.record_transition(from_id, entry.id)
         except (ValueError, TypeError) as err:
             logger.debug("Ignored invalid from_entry_id transition parameter: %s", err)
+    else:
+        last_visited_id = history_repo.get_last_visited_entry_id()
+        if last_visited_id and last_visited_id != entry.id:
+            history_repo.record_transition(last_visited_id, entry.id)
+
+    # Record user visit (after transition check so we compare against the previous visit)
+    history_repo.record_visit(entry.id)
 
     # Retrieve source information if linked
     source = None
